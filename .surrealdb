@@ -1,0 +1,10 @@
+[core]
+    path = "./migrations"
+    schema = "full"
+
+[db]
+    address = "ws://localhost:8100"
+    username = "root"
+    password = "password"
+    ns = "test"
+    db = "test"
