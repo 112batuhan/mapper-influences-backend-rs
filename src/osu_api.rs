@@ -1,6 +1,8 @@
-use std::sync::{Arc, LazyLock};
+use std::{
+    sync::{Arc, LazyLock},
+    time::{Duration, Instant},
+};
 
-use chrono::{DateTime, Duration, Utc};
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
@@ -267,27 +269,30 @@ impl RequestClient {
 pub struct CredentialsGrantClient {
     client: RequestClient,
     access_token: String,
-    expiration_datetime: DateTime<Utc>,
+    expires_in: Duration,
+    auth_time: Instant,
 }
+
 impl CredentialsGrantClient {
     pub async fn new() -> Result<CredentialsGrantClient, AppError> {
         // random big number for sephemore permits. We won't ever reach that number using this
         let client = RequestClient::new(500);
         let token = client.get_client_credentials_token().await?;
-        let expiration_datetime = Utc::now() + Duration::seconds(token.expires_in.into());
 
         Ok(CredentialsGrantClient {
             client,
             access_token: token.access_token,
-            expiration_datetime,
+            expires_in: Duration::from_secs(token.expires_in.into()),
+            auth_time: Instant::now(),
         })
     }
 
     async fn check_token_expiration_and_update(&mut self) -> Result<(), AppError> {
-        if Utc::now() > self.expiration_datetime {
+        if self.auth_time.elapsed() > self.expires_in {
             let token = self.client.get_client_credentials_token().await?;
             self.access_token = token.access_token;
-            self.expiration_datetime = Utc::now() + Duration::seconds(token.expires_in.into());
+            self.auth_time = Instant::now();
+            self.expires_in = Duration::from_secs(token.expires_in.into())
         }
         Ok(())
     }

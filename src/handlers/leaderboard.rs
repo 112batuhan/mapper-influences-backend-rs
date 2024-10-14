@@ -7,7 +7,9 @@ use axum::{
 use cached::proc_macro::cached;
 use serde::{Deserialize, Serialize};
 
-use crate::{database::leaderboard::Leaderboard, error::AppError, AppState};
+use crate::{
+    custom_cache::CustomCache, database::leaderboard::Leaderboard, error::AppError, AppState,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct LeaderboardQuery {
@@ -29,9 +31,11 @@ pub struct LeaderboardResponse {
     leaderboard: Vec<Leaderboard>,
 }
 
+/// This leaderboard query is not as performant as I hoped it would be with the new db.
+/// Users might have to wait for long times. So we need to send leaderboard data in big chunks.
 #[cached(
-    time = 60,
-    key = "String",
+    ty = "CustomCache<String, Json<LeaderboardResponse>>",
+    create = "{CustomCache::new(600)}",
     convert = r#"{format!("{:?}",query_parameters)}"#,
     result = true
 )]

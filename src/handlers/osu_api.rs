@@ -8,14 +8,19 @@ use axum::{
 use cached::proc_macro::cached;
 
 use crate::{
+    custom_cache::CustomCache,
     error::AppError,
     jwt::AuthData,
-    osu_api::{BeatmapOsu, OsuSearchUserResponse, UserOsu},
+    osu_api::{BeatmapOsu, OsuSearchMapResponse, OsuSearchUserResponse, UserOsu},
     AppState,
 };
 
-#[debug_handler]
-#[cached(time = 21600, key = "u32", convert = r#"{user_id}"#, result = true)]
+#[cached(
+    ty = "CustomCache<u32, Json<UserOsu>>",
+    create = "{CustomCache::new(21600)}",
+    convert = r#"{user_id}"#,
+    result = true
+)]
 pub async fn osu_user(
     Path(user_id): Path<u32>,
     Extension(auth_data): Extension<AuthData>,
@@ -28,7 +33,12 @@ pub async fn osu_user(
     Ok(Json(user_osu))
 }
 
-#[cached(time = 86400, key = "u32", convert = r#"{beatmap_id}"#, result = true)]
+#[cached(
+    ty = "CustomCache<u32, Json<BeatmapOsu>>",
+    create = "{CustomCache::new(86400)}",
+    convert = r#"{beatmap_id}"#,
+    result = true
+)]
 pub async fn osu_beatmap(
     Path(beatmap_id): Path<u32>,
     Extension(auth_data): Extension<AuthData>,
@@ -42,11 +52,12 @@ pub async fn osu_beatmap(
 }
 
 #[cached(
-    time = 240,
-    key = "String",
+    ty = "CustomCache<String, Json<OsuSearchUserResponse>>",
+    create = "{CustomCache::new(240)}",
     convert = r#"{query.clone()}"#,
     result = true
 )]
+
 pub async fn osu_user_search(
     Path(query): Path<String>,
     Extension(auth_data): Extension<AuthData>,
@@ -60,8 +71,8 @@ pub async fn osu_user_search(
 }
 
 #[cached(
-    time = 240,
-    key = "String",
+    ty = "CustomCache<String, Json<OsuSearchMapResponse>>",
+    create = "{CustomCache::new(240)}",
     convert = r#"{query.clone()}"#,
     result = true
 )]
@@ -69,10 +80,10 @@ pub async fn osu_beatmap_search(
     Query(query): Query<String>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<OsuSearchUserResponse>, AppError> {
+) -> Result<Json<OsuSearchMapResponse>, AppError> {
     let beatmap_search_osu = state
         .request
-        .search_user_osu(&auth_data.osu_token, &query)
+        .search_map_osu(&auth_data.osu_token, &query)
         .await?;
     Ok(Json(beatmap_search_osu))
 }

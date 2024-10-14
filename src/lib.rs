@@ -2,6 +2,7 @@ use database::DatabaseClient;
 use jwt::JwtUtil;
 use osu_api::RequestClient;
 
+pub mod custom_cache;
 pub mod database;
 pub mod error;
 pub mod handlers;

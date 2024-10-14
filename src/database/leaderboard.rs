@@ -2,14 +2,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
-use super::{CustomId, DatabaseClient};
+use super::DatabaseClient;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Leaderboard {
-    id: CustomId,
+    id: u32,
+    username: String,
+    avatar_url: String,
     country: String,
+    mention_count: u32,
     count: u32,
-    influenced: Vec<CustomId>,
 }
 
 impl DatabaseClient {
@@ -23,18 +25,19 @@ impl DatabaseClient {
         let leaderboard: Vec<Leaderboard> = self
             .db
             .query(
-                "SELECT 
-                    id,
+                "
+                SELECT 
+                    meta::id(id) AS id, 
+                    username,
+                    avatar_url,
                     country,
-                    <-influenced_by<-(user WHERE (ranked = true OR $ranked_board = false) 
-                        AND ($country = none or country = $country)) AS influenced, 
-                    count(<-influenced_by<-(user WHERE (ranked = true OR $ranked_board = false) 
-                        AND ($country = none or country = $country))) AS count
-                    FROM user 
-                    WHERE($country = none or country = $country) 
-                    ORDER BY count DESC
-                    LIMIT $limit
-                    START $start;
+                    count(<-influenced_by) as mention_count,
+                    count(<-influenced_by<-(user WHERE ranked_mapper = true OR $ranked_only = false )) AS count                
+                FROM user 
+                WHERE($country = none or country = $country) 
+                ORDER BY count DESC
+                LIMIT $limit
+                START $start;
                 ",
             )
             .bind(("country", country))
