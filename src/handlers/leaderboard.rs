@@ -5,13 +5,14 @@ use axum::{
     Json,
 };
 use cached::proc_macro::cached;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     custom_cache::CustomCache, database::leaderboard::Leaderboard, error::AppError, AppState,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct LeaderboardQuery {
     #[serde(default)]
     country: Option<String>,
@@ -26,7 +27,7 @@ fn default_limit() -> u32 {
     100
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, JsonSchema)]
 pub struct LeaderboardResponse {
     leaderboard: Vec<Leaderboard>,
 }

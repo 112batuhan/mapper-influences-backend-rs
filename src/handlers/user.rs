@@ -4,16 +4,17 @@ use axum::{
     extract::{Path, State},
     Extension, Json,
 };
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{database::user::UserDb, error::AppError, jwt::AuthData, AppState};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Bio {
     pub bio: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Order {
     pub influence_ids: Vec<u32>,
 }

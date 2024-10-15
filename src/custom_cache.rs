@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use cached::{proc_macro::cached, Cached};
+use cached::Cached;
 use linked_hash_map::LinkedHashMap;
 
 pub struct CustomCache<K: Hash + Eq, V> {

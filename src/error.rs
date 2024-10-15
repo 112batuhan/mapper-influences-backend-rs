@@ -1,8 +1,9 @@
+use aide::OperationIo;
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, OperationIo)]
 pub enum AppError {
     #[error("Missing user {0}")]
     MissingUser(u32),

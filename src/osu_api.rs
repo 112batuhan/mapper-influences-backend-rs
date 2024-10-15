@@ -4,6 +4,7 @@ use std::{
 };
 
 use reqwest::header::{HeaderMap, AUTHORIZATION};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
 
@@ -20,25 +21,25 @@ static REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
     std::env::var("REDIRECT_URI").expect("Missing REDIRECT_URI environment variable")
 });
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct UserId {
     pub id: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct Country {
     pub code: String,
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct Group {
     pub colour: Option<String>,
     pub name: String,
     pub short_name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct UserOsu {
     pub id: u32,
     pub username: String,
@@ -60,17 +61,17 @@ impl UserOsu {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct OsuSearchUserData {
     pub data: Vec<UserId>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct OsuSearchUserResponse {
     pub user: OsuSearchUserData,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct BeatmapOsu {
     pub difficulty_rating: f64,
     pub id: u32,
@@ -79,18 +80,18 @@ pub struct BeatmapOsu {
     pub version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct BeatmapsetRelatedUser {
     pub username: String,
     pub avatar_url: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct Cover {
     pub cover: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct BaseBeatmapset {
     pub beatmaps: Vec<BeatmapOsu>,
     pub title: String,
@@ -101,14 +102,14 @@ pub struct BaseBeatmapset {
     pub user_id: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct BeatmapsetOsu {
     #[serde(flatten)]
     pub base_beatmapset: BaseBeatmapset,
     pub related_users: Vec<BeatmapsetRelatedUser>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct OsuSearchMapResponse {
     pub beatmapsets: Vec<BaseBeatmapset>,
 }

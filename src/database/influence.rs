@@ -1,10 +1,11 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
 use super::{numerical_thing, DatabaseClient};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InfluenceDb {
     influenced_by: u32,
     influenced_to: u32,

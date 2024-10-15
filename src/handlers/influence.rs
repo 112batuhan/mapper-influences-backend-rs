@@ -3,12 +3,13 @@ use axum::{
     extract::{Path, State},
     Extension, Json,
 };
+use schemars::JsonSchema;
 use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::{database::influence::InfluenceDb, error::AppError, jwt::AuthData, AppState};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub struct Description {
     description: String,
 }

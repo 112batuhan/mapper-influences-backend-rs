@@ -6,6 +6,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use reqwest::header::SET_COOKIE;
+use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::{error::AppError, AppState};
@@ -15,7 +16,7 @@ static POST_LOGIN_REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
         .expect("Missing POST_LOGIN_REDIRECT_URI environment variable")
 });
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct AuthQuery {
     code: String,
 }

@@ -1,10 +1,11 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{error::AppError, osu_api::UserOsu};
 
 use super::{numerical_thing, DatabaseClient};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, JsonSchema)]
 pub struct UserDb {
     id: u32,
     username: String,
