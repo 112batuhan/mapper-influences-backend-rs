@@ -27,6 +27,28 @@ pub struct UserWithoutBeatmap {
     pub pending_beatmapset_count: u32,
 }
 
+impl From<UserOsu> for UserWithoutBeatmap {
+    fn from(user_osu: UserOsu) -> Self {
+        UserWithoutBeatmap {
+            id: user_osu.id,
+            username: user_osu.username,
+            avatar_url: user_osu.avatar_url,
+            bio: "".to_string(),
+            groups: user_osu.groups,
+            country_code: user_osu.country.code,
+            country_name: user_osu.country.name,
+            previous_usernames: user_osu.previous_usernames,
+            ranked_and_approved_beatmapset_count: user_osu.ranked_and_approved_beatmapset_count,
+            ranked_beatmapset_count: user_osu.ranked_beatmapset_count,
+            nominated_beatmapset_count: user_osu.nominated_beatmapset_count,
+            guest_beatmapset_count: user_osu.guest_beatmapset_count,
+            loved_beatmapset_count: user_osu.loved_beatmapset_count,
+            graveyard_beatmapset_count: user_osu.graveyard_beatmapset_count,
+            pending_beatmapset_count: user_osu.pending_beatmapset_count,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 pub struct UserDb {
     #[serde(flatten)]

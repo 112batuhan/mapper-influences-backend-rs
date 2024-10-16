@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use cached::proc_macro::cached;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -472,12 +473,10 @@ impl<T: Clone + DeserializeOwned + GetID> CachedRequester<T> {
             let mut cache = self.cache.lock().map_err(|_| AppError::Mutex)?;
             cache.get_multiple(ids)
         };
-
         let misses_requested: Vec<T> = self
             .client
             .request_multiple(&self.base_url, &cache_result.misses, access_token)
             .await?;
-
         let add_to_cache: Vec<(u32, T)> = misses_requested
             .into_iter()
             .map(|value| (value.get_id(), value))
@@ -491,4 +490,19 @@ impl<T: Clone + DeserializeOwned + GetID> CachedRequester<T> {
         cache_result.hits.extend(add_to_cache.into_iter());
         Ok(cache_result.hits)
     }
+}
+
+#[cached(
+    ty = "CustomCache<u32, UserOsu>",
+    create = "{CustomCache::new(21600)}",
+    convert = r#"{user_id}"#,
+    result = true
+)]
+pub async fn cached_osu_user_request(
+    client: Arc<RequestClient>,
+    osu_token: &str,
+    user_id: u32,
+) -> Result<UserOsu, AppError> {
+    let user_osu = client.get_user_osu(osu_token, user_id).await?;
+    Ok(user_osu)
 }

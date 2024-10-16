@@ -136,13 +136,11 @@ pub async fn get_user_influences(
         .flat_map(|influence| &influence.beatmaps)
         .copied()
         .collect();
-
     // Request beatmaps to populate beatmap data
     let beatmaps = state
         .osu_beatmap_multi_requester
         .get_multiple_osu(&beatmaps_to_request, &auth_data.osu_token)
         .await?;
-
     // Get a list of users to request. Users that got queried in db is excluded and will be added
     // back to the hashmap that contains the user data.
     let mut users_to_request: HashSet<u32> = beatmaps.values().map(|map| map.user_id).collect();
@@ -150,13 +148,11 @@ pub async fn get_user_influences(
         users_to_request.remove(&influence.data.id);
     });
     let users_to_request: Vec<u32> = users_to_request.into_iter().collect();
-
     // Users queried
     let mut users = state
         .osu_user_multi_requester
         .get_multiple_osu(&users_to_request, &auth_data.osu_token)
         .await?;
-
     // DB users are inserted back to the user map
     users.extend(influences.iter().map(|mention| {
         (
@@ -168,7 +164,6 @@ pub async fn get_user_influences(
             },
         )
     }));
-
     // Influences converted with beatmap data
     let influences = influences
         .into_iter()

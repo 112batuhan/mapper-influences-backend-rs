@@ -11,7 +11,10 @@ use crate::{
     database::user::{UserDb, UserWithoutBeatmap},
     error::AppError,
     jwt::AuthData,
-    osu_api::{OsuBeatmapCondensed, OsuMultipleBeatmapResponse, OsuMultipleUserResponse},
+    osu_api::{
+        cached_osu_user_request, OsuBeatmapCondensed, OsuMultipleBeatmapResponse,
+        OsuMultipleUserResponse,
+    },
     AppState,
 };
 
@@ -101,12 +104,29 @@ pub async fn get_me(
     Ok(Json(complete_user_data))
 }
 
+/// Returns a database user, If the user is not in database, then returns a osu! API response
 pub async fn get_user(
     Extension(auth_data): Extension<AuthData>,
     Path(user_id): Path<u32>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<UserResponse>, AppError> {
-    let user_data = state.db.get_user_details(user_id).await?;
+    let user_result = state.db.get_user_details(user_id).await;
+
+    let user_data = match user_result {
+        // Early return without any processing if the user is not in DB
+        Err(AppError::MissingUser(_)) => {
+            let data =
+                cached_osu_user_request(state.request.clone(), &auth_data.osu_token, user_id)
+                    .await?;
+            return Ok(Json(UserResponse {
+                data: data.into(),
+                beatmaps: Vec::new(),
+            }));
+        }
+        Err(error) => return Err(error),
+        Ok(data) => data,
+    };
+
     let complete_user_data = user_data_handle(state, auth_data.osu_token, user_data).await?;
     Ok(Json(complete_user_data))
 }

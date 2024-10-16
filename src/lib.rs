@@ -50,22 +50,12 @@ impl AppState {
 pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
     ApiRouter::new()
         .api_route(
-            "/osu-api/search/map",
-            get_with(handlers::osu_api::osu_beatmap_search, |op| {
-                op.tag("osu! API")
-            }),
+            "/search/map",
+            get_with(handlers::osu_api::osu_beatmap_search, |op| op.tag("Search")),
         )
         .api_route(
-            "/osu-api/search/user/:query",
-            get_with(handlers::osu_api::osu_user_search, |op| op.tag("osu! API")),
-        )
-        .api_route(
-            "/osu-api/beatmap/:beatmap_id",
-            get_with(handlers::osu_api::osu_beatmap, |op| op.tag("osu! API")),
-        )
-        .api_route(
-            "/osu-api/user/:user_id",
-            get_with(handlers::osu_api::osu_user, |op| op.tag("osu! API")),
+            "/search/user/:query",
+            get_with(handlers::osu_api::osu_user_search, |op| op.tag("Search")),
         )
         .api_route(
             "/influence",

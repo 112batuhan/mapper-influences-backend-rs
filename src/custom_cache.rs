@@ -7,6 +7,7 @@ use std::{
 use cached::Cached;
 use linked_hash_map::LinkedHashMap;
 
+#[derive(Debug)]
 pub struct MultipleCacheResults<K: Hash + Eq + Clone, V: Clone> {
     pub hits: HashMap<K, V>,
     pub misses: Vec<K>,

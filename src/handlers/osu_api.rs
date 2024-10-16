@@ -10,45 +10,9 @@ use crate::{
     custom_cache::CustomCache,
     error::AppError,
     jwt::AuthData,
-    osu_api::{BeatmapOsu, OsuSearchMapResponse, OsuSearchUserResponse, UserOsu},
+    osu_api::{OsuSearchMapResponse, OsuSearchUserResponse},
     AppState,
 };
-
-#[cached(
-    ty = "CustomCache<u32, Json<UserOsu>>",
-    create = "{CustomCache::new(21600)}",
-    convert = r#"{user_id}"#,
-    result = true
-)]
-pub async fn osu_user(
-    Path(user_id): Path<u32>,
-    Extension(auth_data): Extension<AuthData>,
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<UserOsu>, AppError> {
-    let user_osu = state
-        .request
-        .get_user_osu(&auth_data.osu_token, user_id)
-        .await?;
-    Ok(Json(user_osu))
-}
-
-#[cached(
-    ty = "CustomCache<u32, Json<BeatmapOsu>>",
-    create = "{CustomCache::new(86400)}",
-    convert = r#"{beatmap_id}"#,
-    result = true
-)]
-pub async fn osu_beatmap(
-    Path(beatmap_id): Path<u32>,
-    Extension(auth_data): Extension<AuthData>,
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<BeatmapOsu>, AppError> {
-    let beatmap_osu = state
-        .request
-        .get_beatmap_osu(&auth_data.osu_token, beatmap_id)
-        .await?;
-    Ok(Json(beatmap_osu))
-}
 
 #[cached(
     ty = "CustomCache<String, Json<OsuSearchUserResponse>>",
