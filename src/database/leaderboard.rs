@@ -12,7 +12,7 @@ pub struct Leaderboard {
     avatar_url: String,
     country: String,
     mention_count: u32,
-    count: u32,
+    leaderboard_count: u32,
 }
 
 impl DatabaseClient {
@@ -28,21 +28,28 @@ impl DatabaseClient {
             .query(
                 "
                 SELECT 
-                    meta::id(id) AS id, 
-                    username,
-                    avatar_url,
-                    country,
-                    count(<-influenced_by) as mention_count,
-                    count(<-influenced_by<-(user WHERE ranked_mapper = true OR $ranked_only = false )) AS count                
-                FROM user 
-                WHERE($country = none or country = $country) 
-                ORDER BY count DESC
+                    leaderboard_count, 
+                    meta::id(out.id) AS id, 
+                    out.username AS username, 
+                    out.avatar_url AS avatar_url, 
+                    out.country AS country,
+                    count(out<-influenced_by) as mention_count
+                FROM 
+                    (SELECT 
+                        count() AS leaderboard_count, 
+                        out 
+                    FROM influenced_by 
+                    WHERE $ranked_only = false OR <-user.ranked_mapper.at(0) = true 
+                    GROUP BY out 
+                    ORDER BY leaderboard_count DESC
+                    )
+                WHERE $country = none or out.country = $country
                 LIMIT $limit
                 START $start;
                 ",
             )
             .bind(("country", country))
-            .bind(("ranked_board", ranked))
+            .bind(("ranked_only", ranked))
             .bind(("limit", limit))
             .bind(("start", start))
             .await?

@@ -1,4 +1,5 @@
 use mapper_influences_backend_rs::database::{numerical_thing, DatabaseClient};
+use mapper_influences_backend_rs::osu_api::Group;
 use ordermap::OrderSet;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,6 @@ pub struct User {
     id: u32,
     username: String,
     avatar_url: String,
-    country: String,
     #[serde(deserialize_with = "deserialize_beatmap_ids")]
     #[serde(default)]
     beatmaps: Vec<i64>,
@@ -35,6 +35,36 @@ pub struct User {
     #[serde(default)]
     #[serde(skip_serializing)]
     influence_order: OrderSet<i64>,
+    #[serde(rename(deserialize = "country"))]
+    country_code: String,
+    #[serde(default)]
+    country_name: String,
+    #[serde(default = "default_groups")]
+    groups: Vec<Group>,
+    #[serde(default)]
+    previous_usernames: Vec<String>,
+    #[serde(default)]
+    ranked_and_approved_beatmapset_count: u32,
+    #[serde(default)]
+    ranked_beatmapset_count: u32,
+    #[serde(default)]
+    nominated_beatmapset_count: u32,
+    #[serde(default)]
+    guest_beatmapset_count: u32,
+    #[serde(default)]
+    loved_beatmapset_count: u32,
+    #[serde(default)]
+    graveyard_beatmapset_count: u32,
+    #[serde(default)]
+    pending_beatmapset_count: u32,
+}
+
+fn default_groups() -> Vec<Group> {
+    vec![Group {
+        colour: Some("a".to_string()),
+        name: "b".to_string(),
+        short_name: "c".to_string(),
+    }]
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

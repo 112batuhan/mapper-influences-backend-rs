@@ -1,29 +1,41 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::AppError, osu_api::UserOsu};
+use crate::{
+    error::AppError,
+    osu_api::{Group, UserOsu},
+};
 
 use super::{numerical_thing, DatabaseClient};
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 pub struct UserDb {
-    id: u32,
-    username: String,
-    avatar_url: String,
-    bio: String,
-    country: String,
-    beatmaps: Vec<u32>,
-    mention_count: u32,
+    pub id: u32,
+    pub username: String,
+    pub avatar_url: String,
+    pub bio: String,
+    pub beatmaps: Vec<u32>,
+    pub mention_count: u32,
+    pub groups: Vec<Group>,
+    pub country_code: String,
+    pub country_name: String,
+    pub previous_usernames: Vec<String>,
+    pub ranked_and_approved_beatmapset_count: u32,
+    pub ranked_beatmapset_count: u32,
+    pub nominated_beatmapset_count: u32,
+    pub guest_beatmapset_count: u32,
+    pub loved_beatmapset_count: u32,
+    pub graveyard_beatmapset_count: u32,
+    pub pending_beatmapset_count: u32,
 }
 
 impl DatabaseClient {
     pub async fn upsert_user(
         &self,
         user_details: UserOsu,
-        authorized: bool,
+        authenticated: bool,
     ) -> Result<(), AppError> {
         let ranked_mapper = user_details.is_ranked_mapper();
-
         self.db
             .query(
                 r#"
@@ -31,17 +43,58 @@ impl DatabaseClient {
                 SET 
                     username = $username,
                     avatar_url = $avatar_url,
-                    country = $country,
-                    authorized = $authorized,
-                    has_ranked_maps = $ranked_maps;
+                    authenticated = $authenticated,
+                    ranked_mapper = $ranked_maps,
+                    country_code = $country_code,
+                    country_name = $country_name,
+                    groups = $groups,
+                    previous_usernames = $previous_usernames,
+                    ranked_and_approved_beatmapset_count = $ranked_and_approved_beatmapset_count,
+                    ranked_beatmapset_count = $ranked_beatmapset_count,
+                    nominated_beatmapset_count = $nominated_beatmapset_count,
+                    guest_beatmapset_count = $guest_beatmapset_count,
+                    loved_beatmapset_count = $loved_beatmapset_count,
+                    graveyard_beatmapset_count = $graveyard_beatmapset_count,
+                    pending_beatmapset_count = $pending_beatmapset_count;
                 "#,
             )
             .bind(("thing", numerical_thing("user", user_details.id)))
             .bind(("username", user_details.username))
             .bind(("avatar_url", user_details.avatar_url))
-            .bind(("country", user_details.country))
-            .bind(("authorized", authorized.then_some(true)))
+            .bind(("authenticated", authenticated.then_some(true)))
             .bind(("ranked_maps", ranked_mapper))
+            .bind(("country_code", user_details.country.code))
+            .bind(("country_name", user_details.country.name))
+            .bind(("groups", user_details.groups))
+            .bind(("previous_usernames", user_details.previous_usernames))
+            .bind((
+                "ranked_and_approved_beatmapset_count",
+                user_details.ranked_and_approved_beatmapset_count,
+            ))
+            .bind((
+                "ranked_beatmapset_count",
+                user_details.ranked_beatmapset_count,
+            ))
+            .bind((
+                "nominated_beatmapset_count",
+                user_details.nominated_beatmapset_count,
+            ))
+            .bind((
+                "guest_beatmapset_count",
+                user_details.guest_beatmapset_count,
+            ))
+            .bind((
+                "loved_beatmapset_count",
+                user_details.loved_beatmapset_count,
+            ))
+            .bind((
+                "graveyard_beatmapset_count",
+                user_details.graveyard_beatmapset_count,
+            ))
+            .bind((
+                "pending_beatmapset_count",
+                user_details.pending_beatmapset_count,
+            ))
             .await?;
         Ok(())
     }
@@ -112,9 +165,19 @@ impl DatabaseClient {
                     username,
                     avatar_url,
                     bio,
-                    country,
                     beatmaps,
-                    count(<-influenced_by) as mention_count
+                    count(<-influenced_by) as mention_count,
+                    country_code,
+                    country_name,
+                    groups,
+                    previous_usernames,
+                    ranked_and_approved_beatmapset_count,
+                    ranked_beatmapset_count,
+                    nominated_beatmapset_count,
+                    guest_beatmapset_count,
+                    loved_beatmapset_count,
+                    graveyard_beatmapset_count,
+                    pending_beatmapset_count
                 FROM ONLY $thing;
                 ",
             )

@@ -5,7 +5,9 @@ use aide::axum::ApiRouter;
 use axum::middleware;
 use database::DatabaseClient;
 use jwt::JwtUtil;
-use osu_api::RequestClient;
+use osu_api::{
+    CachedRequester, OsuMultipleBeatmapResponse, OsuMultipleUserResponse, RequestClient,
+};
 
 pub mod custom_cache;
 pub mod database;
@@ -16,18 +18,31 @@ pub mod osu_api;
 
 pub struct AppState {
     pub db: DatabaseClient,
-    pub request: RequestClient,
+    pub request: Arc<RequestClient>,
     pub jwt: JwtUtil,
+    pub osu_user_multi_requester: CachedRequester<OsuMultipleUserResponse>,
+    pub osu_beatmap_multi_requester: CachedRequester<OsuMultipleBeatmapResponse>,
 }
 
 impl AppState {
     pub async fn new() -> AppState {
+        let request = Arc::new(RequestClient::new(10));
         AppState {
             db: DatabaseClient::new()
                 .await
                 .expect("failed to initialize db connection"),
-            request: RequestClient::new(10),
+            request: request.clone(),
             jwt: JwtUtil::new_jwt(),
+            osu_user_multi_requester: CachedRequester::new(
+                request.clone(),
+                "https://osu.ppy.sh/api/v2/users",
+                24600,
+            ),
+            osu_beatmap_multi_requester: CachedRequester::new(
+                request,
+                "https://osu.ppy.sh/api/v2/beatmaps",
+                86400,
+            ),
         }
     }
 }
@@ -95,6 +110,10 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
         .api_route(
             "/users/me",
             get_with(handlers::user::get_me, |op| op.tag("User")),
+        )
+        .api_route(
+            "/users/test",
+            post_with(handlers::user::test, |op| op.tag("User")),
         )
         .api_route(
             "/users/:user_id",

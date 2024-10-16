@@ -44,13 +44,14 @@ pub async fn osu_oauth2_redirect(
     redirect_response.headers_mut().insert(
         SET_COOKIE,
         format!(
-            "user_token:{}; HttpOnly; Max-Age=86400; Path=/; SameSite=lax",
+            "user_token={}; HttpOnly; Max-Age=86400; Path=/; SameSite=lax",
             token
         )
         .parse()
         .unwrap(),
     );
     state.db.upsert_user(osu_user, true).await?;
+    dbg!("REDIRECTED!!");
     Ok(redirect_response)
 }
 

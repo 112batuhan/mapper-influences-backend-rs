@@ -49,7 +49,7 @@ async fn main() {
         )
         .nest("/", routes(state.clone()))
         .finish_api(&mut api)
-        .layer(cors)
+        //.layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(Extension(Arc::new(api)))
         .with_state(state);

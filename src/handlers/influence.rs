@@ -1,5 +1,4 @@
 use axum::{
-    debug_handler,
     extract::{Path, State},
     Extension, Json,
 };
@@ -50,6 +49,15 @@ pub async fn add_influence_beatmap(
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
+    let beatmap = state
+        .osu_beatmap_multi_requester
+        .get_multiple_osu(&[beatmap_id], &auth_data.osu_token)
+        .await?;
+
+    if beatmap.is_empty() {
+        return Err(AppError::NonExistingMap(beatmap_id));
+    }
+
     state
         .db
         .add_beatmap_to_influence(auth_data.user_id, influenced_to, beatmap_id)
@@ -91,7 +99,6 @@ pub async fn get_user_mentions(
     Ok(Json(mentions))
 }
 
-#[debug_handler]
 pub async fn get_user_influences(
     Path(user_id): Path<u32>,
     State(state): State<Arc<AppState>>,
