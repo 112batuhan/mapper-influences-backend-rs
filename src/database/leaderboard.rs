@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::error::AppError;
+use crate::{error::AppError, osu_api::Group};
 
 use super::DatabaseClient;
 
@@ -10,9 +10,12 @@ pub struct Leaderboard {
     id: u32,
     username: String,
     avatar_url: String,
-    country: String,
+    country_code: String,
+    country_name: String,
     mention_count: u32,
     leaderboard_count: u32,
+    groups: Vec<Group>,
+    ranked_maps: u32,
 }
 
 impl DatabaseClient {
@@ -32,7 +35,11 @@ impl DatabaseClient {
                     meta::id(out.id) AS id, 
                     out.username AS username, 
                     out.avatar_url AS avatar_url, 
-                    out.country AS country,
+                    out.country_code AS country_code,
+                    out.country_name as country_name,
+                    out.groups as groups,
+                    out.ranked_and_approved_beatmapset_count 
+                        + out.guest_beatmapset_count as ranked_maps,
                     count(out<-influenced_by) as mention_count
                 FROM 
                     (SELECT 
@@ -43,7 +50,7 @@ impl DatabaseClient {
                     GROUP BY out 
                     ORDER BY leaderboard_count DESC
                     )
-                WHERE $country = none or out.country = $country
+                WHERE $country = none or out.country_code = $country
                 LIMIT $limit
                 START $start;
                 ",

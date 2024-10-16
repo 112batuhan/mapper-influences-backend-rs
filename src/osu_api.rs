@@ -368,7 +368,6 @@ impl RequestClient {
         drop(permit);
 
         let text = &res.text().await?;
-        println!("{text}");
         let data: Value = serde_json::from_str(text)?;
         let inner = data
             .as_object()

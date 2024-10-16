@@ -76,8 +76,6 @@ pub async fn user_data_handle(
         .into_values()
         .collect();
 
-    dbg!(&beatmaps);
-
     // usually users add their own maps to showcase, to skip on user request, we first remove the
     // requested user from the list, then add it back while adding user data to the beatmaps.
     // we could add one more cache layer and pull data from database before going for user requests
@@ -98,12 +96,12 @@ pub async fn user_data_handle(
             username: user_data.username.clone(),
         },
     );
-    dbg!(&users);
 
     let beatmaps = beatmaps
         .into_iter()
         .filter_map(|beatmap| {
-            //WARN: Possible fail point, properly handle errors
+            //NOTE: Possible fail point, properly handle errors
+            //there could be missing maps but extremely unlikely
             let user = users.get(&beatmap.user_id)?;
             Some(OsuBeatmapCondensed::from_osu_multiple_and_user_data(
                 beatmap,
