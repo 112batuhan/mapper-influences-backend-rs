@@ -8,10 +8,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    database::user::UserDb,
+    database::user::{UserDb, UserWithoutBeatmap},
     error::AppError,
     jwt::AuthData,
-    osu_api::{Group, OsuBeatmapCondensed, OsuMultipleBeatmapResponse, OsuMultipleUserResponse},
+    osu_api::{OsuBeatmapCondensed, OsuMultipleBeatmapResponse, OsuMultipleUserResponse},
     AppState,
 };
 
@@ -32,57 +32,46 @@ pub struct Test {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct UserResponse {
-    pub id: u32,
-    pub username: String,
-    pub avatar_url: String,
-    pub bio: String,
-    pub groups: Vec<Group>,
-    pub country_code: String,
-    pub country_name: String,
-    pub previous_usernames: Vec<String>,
-    pub ranked_and_approved_beatmapset_count: u32,
-    pub ranked_beatmapset_count: u32,
-    pub nominated_beatmapset_count: u32,
-    pub guest_beatmapset_count: u32,
-    pub loved_beatmapset_count: u32,
-    pub graveyard_beatmapset_count: u32,
-    pub pending_beatmapset_count: u32,
+    #[serde(flatten)]
+    pub data: UserWithoutBeatmap,
     pub beatmaps: Vec<OsuBeatmapCondensed>,
 }
 
 pub async fn user_data_handle(
     state: Arc<AppState>,
     osu_token: String,
-    user_data: UserDb,
+    user: UserDb,
 ) -> Result<UserResponse, AppError> {
     let beatmaps: Vec<OsuMultipleBeatmapResponse> = state
         .osu_beatmap_multi_requester
-        .get_multiple_osu(&user_data.beatmaps, &osu_token)
+        .get_multiple_osu(&user.beatmaps, &osu_token)
         .await?
         .into_values()
         .collect();
 
-    // usually users add their own maps to showcase, to skip on user request, we first remove the
-    // requested user from the list, then add it back while adding user data to the beatmaps.
-    // we could add one more cache layer and pull data from database before going for user requests
-    // but this is already saving on requests massively. No need to premature optimization.
-    // plus I didn't like the performance of the surrealdb, so it's better to split the load.
+    // Get a list of users to request. User that got queried with the db will be put
+    // back to the hashmap that contains the user data.
     let mut users_needed: HashSet<u32> = beatmaps.iter().map(|beatmap| beatmap.user_id).collect();
-    users_needed.remove(&user_data.id);
+    users_needed.remove(&user.data.id);
     let users_needed: Vec<u32> = users_needed.into_iter().collect();
+
+    // users queried
     let mut users = state
         .osu_user_multi_requester
         .get_multiple_osu(&users_needed, &osu_token)
         .await?;
+
+    // Db user put back to the user map
     users.insert(
-        user_data.id,
+        user.data.id,
         OsuMultipleUserResponse {
-            id: user_data.id,
-            avatar_url: user_data.avatar_url.clone(),
-            username: user_data.username.clone(),
+            id: user.data.id,
+            avatar_url: user.data.avatar_url.clone(),
+            username: user.data.username.clone(),
         },
     );
 
+    // beatmaps populated with user data
     let beatmaps = beatmaps
         .into_iter()
         .filter_map(|beatmap| {
@@ -98,21 +87,7 @@ pub async fn user_data_handle(
         .collect();
 
     Ok(UserResponse {
-        id: user_data.id,
-        username: user_data.username,
-        avatar_url: user_data.avatar_url,
-        bio: user_data.bio,
-        country_code: user_data.country_code,
-        country_name: user_data.country_name,
-        groups: user_data.groups,
-        previous_usernames: user_data.previous_usernames,
-        ranked_and_approved_beatmapset_count: user_data.ranked_and_approved_beatmapset_count,
-        ranked_beatmapset_count: user_data.ranked_beatmapset_count,
-        nominated_beatmapset_count: user_data.nominated_beatmapset_count,
-        guest_beatmapset_count: user_data.guest_beatmapset_count,
-        loved_beatmapset_count: user_data.loved_beatmapset_count,
-        graveyard_beatmapset_count: user_data.graveyard_beatmapset_count,
-        pending_beatmapset_count: user_data.pending_beatmapset_count,
+        data: user.data,
         beatmaps,
     })
 }

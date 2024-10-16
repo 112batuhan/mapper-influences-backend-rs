@@ -8,13 +8,12 @@ use crate::{
 
 use super::{numerical_thing, DatabaseClient};
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
-pub struct UserDb {
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+pub struct UserWithoutBeatmap {
     pub id: u32,
     pub username: String,
     pub avatar_url: String,
     pub bio: String,
-    pub beatmaps: Vec<u32>,
     pub groups: Vec<Group>,
     pub country_code: String,
     pub country_name: String,
@@ -26,6 +25,13 @@ pub struct UserDb {
     pub loved_beatmapset_count: u32,
     pub graveyard_beatmapset_count: u32,
     pub pending_beatmapset_count: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+pub struct UserDb {
+    #[serde(flatten)]
+    pub data: UserWithoutBeatmap,
+    pub beatmaps: Vec<u32>,
 }
 
 impl DatabaseClient {

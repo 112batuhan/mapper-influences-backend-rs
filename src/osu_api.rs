@@ -296,7 +296,7 @@ impl RequestClient {
         let res = self.client.get(url).headers(headers).send().await?;
         drop(permit);
 
-        let data = res.json::<T>().await?;
+        let data = res.json().await?;
         Ok(data)
     }
     pub async fn get_token_user(&self, access_token: &str) -> Result<UserOsu, AppError> {

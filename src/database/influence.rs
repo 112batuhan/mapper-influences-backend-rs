@@ -6,27 +6,24 @@ use crate::{error::AppError, osu_api::Group};
 use super::{numerical_thing, DatabaseClient};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InfluenceDb {
-    influenced_by: u32,
-    influenced_to: u32,
-    influence_type: u8,
-    description: String,
-    beatmaps: Vec<u32>,
+pub struct InfluenceWithoutBeatmaps {
+    pub id: u32,
+    pub country_code: String,
+    pub country_name: String,
+    pub avatar_url: String,
+    pub username: String,
+    pub groups: Vec<Group>,
+    pub ranked_maps: u32,
+    pub influence_type: u8,
+    pub description: String,
+    pub mention_count: u32,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct MentionsDb {
-    id: u32,
-    country_code: String,
-    country_name: String,
-    avatar_url: String,
-    username: String,
-    groups: Vec<Group>,
-    ranked_maps: u32,
-    influence_type: u8,
-    description: String,
-    beatmaps: Vec<u32>,
-    mention_count: u32,
+pub struct InfluenceDb {
+    #[serde(flatten)]
+    pub data: InfluenceWithoutBeatmaps,
+    pub beatmaps: Vec<u32>,
 }
 
 impl DatabaseClient {
@@ -128,11 +125,18 @@ impl DatabaseClient {
             .query(
                 "
                 SELECT 
-                    meta::id(in) as influenced_by,
-                    meta::id(out) as influenced_to,
+                    meta::id(out) as id,
+                    out.country_code as country_code,
+                    out.country_name as country_name,
+                    out.avatar_url as avatar_url,
+                    out.username as username,
+                    out.groups as groups,
+                    out.ranked_and_approved_beatmapset_count 
+                        + out.guest_beatmapset_count as ranked_maps,
                     influence_type,
                     description,
                     beatmaps,
+                    COUNT(->user<-influenced_by) as mention_count,
                     order
                 FROM $thing->influenced_by
                 ORDER BY order
@@ -145,8 +149,8 @@ impl DatabaseClient {
         Ok(influences)
     }
 
-    pub async fn get_mentions(&self, user_id: u32) -> Result<Vec<MentionsDb>, AppError> {
-        let influences: Vec<MentionsDb> = self
+    pub async fn get_mentions(&self, user_id: u32) -> Result<Vec<InfluenceDb>, AppError> {
+        let influences: Vec<InfluenceDb> = self
             .db
             .query(
                 "
