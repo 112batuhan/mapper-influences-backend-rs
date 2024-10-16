@@ -6,7 +6,12 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{database::influence::InfluenceDb, error::AppError, jwt::AuthData, AppState};
+use crate::{
+    database::influence::{InfluenceDb, MentionsDb},
+    error::AppError,
+    jwt::AuthData,
+    AppState,
+};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct Description {
@@ -91,10 +96,23 @@ pub async fn update_influence_description(
     Ok(())
 }
 
+pub async fn update_influence_type(
+    Path(influenced_to): Path<u32>,
+    Path(type_id): Path<u8>,
+    Extension(auth_data): Extension<AuthData>,
+    State(state): State<Arc<AppState>>,
+) -> Result<(), AppError> {
+    state
+        .db
+        .update_influence_type(auth_data.user_id, influenced_to, type_id)
+        .await?;
+    Ok(())
+}
+
 pub async fn get_user_mentions(
     Path(user_id): Path<u32>,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<InfluenceDb>>, AppError> {
+) -> Result<Json<Vec<MentionsDb>>, AppError> {
     let mentions = state.db.get_mentions(user_id).await?;
     Ok(Json(mentions))
 }

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::error::AppError;
+use crate::{error::AppError, osu_api::Group};
 
 use super::{numerical_thing, DatabaseClient};
 
@@ -12,6 +12,21 @@ pub struct InfluenceDb {
     influence_type: u8,
     description: String,
     beatmaps: Vec<u32>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct MentionsDb {
+    id: u32,
+    country_code: String,
+    country_name: String,
+    avatar_url: String,
+    username: String,
+    groups: Vec<Group>,
+    ranked_maps: u32,
+    influence_type: u8,
+    description: String,
+    beatmaps: Vec<u32>,
+    mention_count: u32,
 }
 
 impl DatabaseClient {
@@ -77,6 +92,21 @@ impl DatabaseClient {
         Ok(())
     }
 
+    pub async fn update_influence_type(
+        &self,
+        own_user_id: u32,
+        target_user_id: u32,
+        influence_type: u8,
+    ) -> Result<(), AppError> {
+        self.db
+            .query("UPDATE $own_user->influenced_by SET influence_type = $influence_type WHERE out=$target_user;")
+            .bind(("own_user", numerical_thing("user", own_user_id)))
+            .bind(("target_user", numerical_thing("user", target_user_id)))
+            .bind(("influence_type", influence_type))
+            .await?;
+        Ok(())
+    }
+
     pub async fn update_influence_description(
         &self,
         own_user_id: u32,
@@ -115,18 +145,23 @@ impl DatabaseClient {
         Ok(influences)
     }
 
-    pub async fn get_mentions(&self, user_id: u32) -> Result<Vec<InfluenceDb>, AppError> {
-        let influences: Vec<InfluenceDb> = self
+    pub async fn get_mentions(&self, user_id: u32) -> Result<Vec<MentionsDb>, AppError> {
+        let influences: Vec<MentionsDb> = self
             .db
             .query(
                 "
                 SELECT 
-                    meta::id(in) as influenced_by,
-                    meta::id(out) as influenced_to,
+                    meta::id(in) as id,
+                    in.country_code as country_code,
+                    in.country_name as country_name,
+                    in.avatar_url as avatar_url,
+                    in.username as username,
+                    in.groups as groups,
+                    in.ranked_and_approved_beatmapset_count 
+                        + in.guest_beatmapset_count as ranked_maps,
                     influence_type,
                     description,
                     beatmaps,
-                    // Only used for sorting
                     COUNT(<-user<-influenced_by) as mention_count
                 FROM $thing<-influenced_by 
                 ORDER BY mention_count DESC

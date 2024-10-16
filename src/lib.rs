@@ -108,6 +108,12 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             }),
         )
         .api_route(
+            "/influence/:influenced_to/type/:type_id",
+            patch_with(handlers::influence::update_influence_type, |op| {
+                op.tag("Influence")
+            }),
+        )
+        .api_route(
             "/users/me",
             get_with(handlers::user::get_me, |op| op.tag("User")),
         )
