@@ -50,19 +50,6 @@ pub struct UserResponse {
     pub beatmaps: Vec<OsuBeatmapCondensed>,
 }
 
-pub async fn test(
-    Extension(auth_data): Extension<AuthData>,
-    State(state): State<Arc<AppState>>,
-    Json(test): Json<Test>,
-) -> Result<(), AppError> {
-    let users = state
-        .osu_beatmap_multi_requester
-        .get_multiple_osu(&test.users, &auth_data.osu_token)
-        .await?;
-    dbg!(users);
-    Ok(())
-}
-
 pub async fn user_data_handle(
     state: Arc<AppState>,
     osu_token: String,

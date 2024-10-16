@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::CookieJar;
+use http::HeaderMap;
 use reqwest::header::SET_COOKIE;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -51,8 +52,18 @@ pub async fn osu_oauth2_redirect(
         .unwrap(),
     );
     state.db.upsert_user(osu_user, true).await?;
-    dbg!("REDIRECTED!!");
     Ok(redirect_response)
+}
+
+pub async fn logout() -> Response {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        SET_COOKIE,
+        "user_token=deleted; HttpOnly; Max-Age=-1; Path=/; SameSite=lax"
+            .parse()
+            .unwrap(),
+    );
+    headers.into_response()
 }
 
 pub async fn check_jwt_token(

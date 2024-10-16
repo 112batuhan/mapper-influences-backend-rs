@@ -118,10 +118,6 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             get_with(handlers::user::get_me, |op| op.tag("User")),
         )
         .api_route(
-            "/users/test",
-            post_with(handlers::user::test, |op| op.tag("User")),
-        )
-        .api_route(
             "/users/:user_id",
             get_with(handlers::user::get_user, |op| op.tag("User")),
         )
@@ -148,6 +144,10 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
         .api_route(
             "/oauth/osu-redirect",
             get_with(handlers::auth::osu_oauth2_redirect, |op| op.tag("Auth")),
+        )
+        .api_route(
+            "/oauth/logout",
+            get_with(handlers::auth::logout, |op| op.tag("Auth")),
         )
         .api_route(
             "/leaderboard",
