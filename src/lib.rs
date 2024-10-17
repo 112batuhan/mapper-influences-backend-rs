@@ -20,8 +20,8 @@ pub struct AppState {
     pub db: DatabaseClient,
     pub request: Arc<RequestClient>,
     pub jwt: JwtUtil,
-    pub osu_user_multi_requester: CachedRequester<OsuMultipleUserResponse>,
-    pub osu_beatmap_multi_requester: CachedRequester<OsuMultipleBeatmapResponse>,
+    pub osu_user_multi_requester: Arc<CachedRequester<OsuMultipleUserResponse>>,
+    pub osu_beatmap_multi_requester: Arc<CachedRequester<OsuMultipleBeatmapResponse>>,
 }
 
 impl AppState {
@@ -33,16 +33,16 @@ impl AppState {
                 .expect("failed to initialize db connection"),
             request: request.clone(),
             jwt: JwtUtil::new_jwt(),
-            osu_user_multi_requester: CachedRequester::new(
+            osu_user_multi_requester: Arc::new(CachedRequester::new(
                 request.clone(),
                 "https://osu.ppy.sh/api/v2/users",
                 24600,
-            ),
-            osu_beatmap_multi_requester: CachedRequester::new(
+            )),
+            osu_beatmap_multi_requester: Arc::new(CachedRequester::new(
                 request,
                 "https://osu.ppy.sh/api/v2/beatmaps",
                 86400,
-            ),
+            )),
         }
     }
 }

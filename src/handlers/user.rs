@@ -47,6 +47,7 @@ pub async fn user_data_handle(
 ) -> Result<UserResponse, AppError> {
     let beatmaps: Vec<OsuMultipleBeatmapResponse> = state
         .osu_beatmap_multi_requester
+        .clone()
         .get_multiple_osu(&user.beatmaps, &osu_token)
         .await?
         .into_values()
@@ -61,6 +62,7 @@ pub async fn user_data_handle(
     // users queried
     let mut users = state
         .osu_user_multi_requester
+        .clone()
         .get_multiple_osu(&users_needed, &osu_token)
         .await?;
 
@@ -155,6 +157,7 @@ pub async fn add_user_beatmap(
 ) -> Result<(), AppError> {
     let beatmap = state
         .osu_beatmap_multi_requester
+        .clone()
         .get_multiple_osu(&[beatmap_id], &auth_data.osu_token)
         .await?;
 

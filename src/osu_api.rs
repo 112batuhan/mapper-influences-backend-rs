@@ -355,8 +355,8 @@ impl RequestClient {
 
     async fn request_and_deserialize_without_outer_layer<T: DeserializeOwned>(
         &self,
-        url: &str,
-        access_token: &str,
+        url: String,
+        access_token: String,
     ) -> Result<Vec<T>, AppError> {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -381,13 +381,13 @@ impl RequestClient {
         Ok(with_type)
     }
 
-    pub async fn request_multiple<T: DeserializeOwned>(
-        &self,
+    pub async fn request_multiple<T: DeserializeOwned + std::marker::Send + 'static>(
+        self: Arc<Self>,
         base_url: &str,
         keys: &[u32],
         access_token: &str,
     ) -> Result<Vec<T>, AppError> {
-        let mut all = Vec::new();
+        let mut handlers = Vec::new();
         for chunk_ids in keys.chunks(50) {
             let url = format!(
                 "{}?{}",
@@ -398,10 +398,23 @@ impl RequestClient {
                     .collect::<Vec<_>>()
                     .join("&")
             );
-            let chunk_response: Vec<T> = self
-                .request_and_deserialize_without_outer_layer(&url, access_token)
-                .await?;
-            all.extend(chunk_response.into_iter());
+            let cloned_url = url.clone();
+            let cloned_access_token = access_token.to_string();
+            let self_clone = Arc::clone(&self);
+
+            let handler = tokio::spawn(async move {
+                self_clone
+                    .request_and_deserialize_without_outer_layer(cloned_url, cloned_access_token)
+                    .await
+            });
+            handlers.push(handler);
+        }
+
+        let mut all = Vec::new();
+        for handler in handlers {
+            if let Ok(request_result) = handler.await {
+                all.extend(request_result?)
+            }
         }
         Ok(all)
     }
@@ -445,13 +458,13 @@ impl CredentialsGrantClient {
     }
 }
 
-pub struct CachedRequester<T: Clone + DeserializeOwned + GetID> {
+pub struct CachedRequester<T: DeserializeOwned + GetID + Clone + Send + 'static> {
     pub client: Arc<RequestClient>,
     pub cache: Mutex<CustomCache<u32, T>>,
     pub base_url: String,
 }
 
-impl<T: Clone + DeserializeOwned + GetID> CachedRequester<T> {
+impl<T: DeserializeOwned + GetID + Clone + Send + 'static> CachedRequester<T> {
     pub fn new(
         client: Arc<RequestClient>,
         base_url: &str,
@@ -465,29 +478,38 @@ impl<T: Clone + DeserializeOwned + GetID> CachedRequester<T> {
     }
 
     pub async fn get_multiple_osu(
-        &self,
+        self: Arc<Self>,
         ids: &[u32],
         access_token: &str,
     ) -> Result<HashMap<u32, T>, AppError> {
+        // try to get the results from cache
         let mut cache_result = {
             let mut cache = self.cache.lock().map_err(|_| AppError::Mutex)?;
             cache.get_multiple(ids)
         };
+
+        // Request the missing items
         let misses_requested: Vec<T> = self
             .client
+            .clone()
             .request_multiple(&self.base_url, &cache_result.misses, access_token)
             .await?;
+
+        // Map the results to add to cache
         let add_to_cache: Vec<(u32, T)> = misses_requested
             .into_iter()
             .map(|value| (value.get_id(), value))
             .collect();
 
+        // Update the cache with the new data
         {
             let mut cache = self.cache.lock().map_err(|_| AppError::Mutex)?;
-            cache.set_multiple(add_to_cache.clone())
+            cache.set_multiple(add_to_cache.clone());
         }
 
+        // Combine hits with newly fetched data
         cache_result.hits.extend(add_to_cache.into_iter());
+
         Ok(cache_result.hits)
     }
 }

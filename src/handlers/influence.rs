@@ -64,6 +64,7 @@ pub async fn add_influence_beatmap(
 ) -> Result<(), AppError> {
     let beatmap = state
         .osu_beatmap_multi_requester
+        .clone()
         .get_multiple_osu(&[beatmap_id], &auth_data.osu_token)
         .await?;
 
@@ -139,6 +140,7 @@ pub async fn get_user_influences(
     // Request beatmaps to populate beatmap data
     let beatmaps = state
         .osu_beatmap_multi_requester
+        .clone()
         .get_multiple_osu(&beatmaps_to_request, &auth_data.osu_token)
         .await?;
     // Get a list of users to request. Users that got queried in db is excluded and will be added
@@ -151,6 +153,7 @@ pub async fn get_user_influences(
     // Users queried
     let mut users = state
         .osu_user_multi_requester
+        .clone()
         .get_multiple_osu(&users_to_request, &auth_data.osu_token)
         .await?;
     // DB users are inserted back to the user map
