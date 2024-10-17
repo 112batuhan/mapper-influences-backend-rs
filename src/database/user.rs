@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
 
 use crate::{
     error::AppError,
@@ -54,6 +55,31 @@ pub struct UserDb {
     #[serde(flatten)]
     pub data: UserWithoutBeatmap,
     pub beatmaps: Vec<u32>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+pub struct UserCondensed {
+    pub id: u32,
+    pub username: String,
+    pub avatar_url: String,
+    pub groups: Vec<Group>,
+    pub country_code: String,
+    pub country_name: String,
+    pub ranked_maps: u32,
+}
+
+impl From<UserOsu> for UserCondensed {
+    fn from(user: UserOsu) -> Self {
+        UserCondensed {
+            id: user.id,
+            username: user.username,
+            avatar_url: user.avatar_url,
+            groups: user.groups,
+            country_code: user.country.code,
+            country_name: user.country.name,
+            ranked_maps: user.ranked_and_approved_beatmapset_count + user.guest_beatmapset_count,
+        }
+    }
 }
 
 impl DatabaseClient {
@@ -212,5 +238,35 @@ impl DatabaseClient {
             .take(0)?;
 
         user_db.ok_or(AppError::MissingUser(user_id))
+    }
+
+    pub async fn get_multiple_user_details(
+        &self,
+        user_ids: &[u32],
+    ) -> Result<Vec<UserCondensed>, AppError> {
+        let things: Vec<Thing> = user_ids
+            .iter()
+            .map(|id| numerical_thing("user", *id))
+            .collect();
+        let users_db: Vec<UserCondensed> = self
+            .db
+            .query(
+                "
+                SELECT 
+                    meta::id(id) as id,
+                    username,
+                    avatar_url,
+                    country_code,
+                    country_name,
+                    groups,
+                    ranked_and_approved_beatmapset_count 
+                        + guest_beatmapset_count as ranked_maps
+                FROM $things;
+                ",
+            )
+            .bind(("things", things))
+            .await?
+            .take(0)?;
+        Ok(users_db)
     }
 }
