@@ -398,13 +398,12 @@ impl RequestClient {
                     .collect::<Vec<_>>()
                     .join("&")
             );
-            let cloned_url = url.clone();
-            let cloned_access_token = access_token.to_string();
+            let access_token_string = access_token.to_string();
             let self_clone = Arc::clone(&self);
 
             let handler = tokio::spawn(async move {
                 self_clone
-                    .request_and_deserialize_without_outer_layer(cloned_url, cloned_access_token)
+                    .request_and_deserialize_without_outer_layer(url, access_token_string)
                     .await
             });
             handlers.push(handler);
