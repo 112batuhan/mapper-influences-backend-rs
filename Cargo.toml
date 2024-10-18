@@ -18,6 +18,7 @@ axum = { version = "0.7.7", features = ["macros"] }
 axum-extra = { version = "0.9.4", features = ["cookie"] }
 cached = { version = "0.53.1", features = ["async"] }
 dotenvy = "0.15.7"
+hashlink = "0.9.1"
 http = "1.1.0"
 jwt-simple = { version = "0.12.10", default-features = false, features = [
     "pure-rust",

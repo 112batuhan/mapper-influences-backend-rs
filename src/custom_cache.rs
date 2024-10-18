@@ -32,6 +32,9 @@ impl<K: Hash + Eq + Clone, V: Clone> CustomCache<K, V> {
             } else {
                 break;
             }
+            if self.store.len() < self.store.capacity() / 3 {
+                self.store.shrink_to_fit();
+            }
         }
     }
 
