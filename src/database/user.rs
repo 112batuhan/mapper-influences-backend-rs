@@ -195,8 +195,8 @@ impl DatabaseClient {
             .query(
                 r#"
                 FOR $order in $order_array{
-                    UPDATE influenced_by SET order = $order.at(0) 
-                    WHERE in = $thing and out = type::thing("user", $order.at(1));
+                    UPDATE $thing->influenced_by SET order = $order.at(0) 
+                    WHERE out = type::thing("user", $order.at(1));
                 }
                 "#,
             )
