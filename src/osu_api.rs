@@ -6,6 +6,7 @@ use std::{
 };
 
 use cached::proc_macro::cached;
+use futures::future::try_join_all;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -52,7 +53,7 @@ pub struct Country {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq, Eq)]
 pub struct Group {
     pub colour: Option<String>,
     pub name: String,
@@ -164,7 +165,7 @@ pub struct OsuMultipleBeatmapsetResponse {
     pub covers: Cover,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq)]
 pub struct OsuBeatmapCondensed {
     pub id: u32,
     pub difficulty_rating: f32,
@@ -402,20 +403,21 @@ impl RequestClient {
             let self_clone = Arc::clone(&self);
 
             let handler = tokio::spawn(async move {
-                self_clone
+                let response: Result<Vec<T>, AppError> = self_clone
                     .request_and_deserialize_without_outer_layer(url, access_token_string)
-                    .await
+                    .await;
+                response
             });
             handlers.push(handler);
         }
 
-        let mut all = Vec::new();
-        for handler in handlers {
-            if let Ok(request_result) = handler.await {
-                all.extend(request_result?)
-            }
-        }
-        Ok(all)
+        try_join_all(handlers)
+            .await?
+            .into_iter()
+            .try_fold(vec![], |mut acc, result| {
+                acc.extend(result?);
+                Ok(acc)
+            })
     }
 }
 

@@ -5,7 +5,7 @@ use crate::{error::AppError, osu_api::Group};
 
 use super::{numerical_thing, DatabaseClient};
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
 pub struct InfluenceWithoutBeatmaps {
     pub id: u32,
     pub country_code: String,
@@ -33,13 +33,7 @@ impl DatabaseClient {
         target_user_id: u32,
     ) -> Result<(), AppError> {
         self.db
-            .query(
-                r#"
-                RELATE $user ->influenced_by-> $target
-                SET 
-                    order = object::values(SELECT COUNT(->influenced_by) FROM ONLY $user).at(0)
-                "#,
-            )
+            .query("RELATE $user ->influenced_by-> $target")
             .bind(("user", numerical_thing("user", user_id)))
             .bind(("target", numerical_thing("user", target_user_id)))
             .await?;

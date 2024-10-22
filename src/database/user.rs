@@ -57,7 +57,7 @@ pub struct UserDb {
     pub beatmaps: Vec<u32>,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq, Eq)]
 pub struct UserCondensed {
     pub id: u32,
     pub username: String,
@@ -183,8 +183,6 @@ impl DatabaseClient {
         Ok(())
     }
 
-    /// TODO: Use the query structure like the one here:
-    /// https://surrealdb.com/docs/surrealql/statements/relate#deleting-graph-edges
     pub async fn set_influence_order(&self, user_id: u32, order: &[u32]) -> Result<(), AppError> {
         let enumerated_array: Vec<(u32, u32)> = order
             .iter()

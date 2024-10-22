@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::CookieJar;
+use futures::try_join;
 use http::HeaderMap;
 use reqwest::header::SET_COOKIE;
 use schemars::JsonSchema;
@@ -51,7 +52,10 @@ pub async fn osu_oauth2_redirect(
         .parse()
         .unwrap(),
     );
-    state.db.upsert_user(osu_user, true).await?;
+    try_join!(
+        state.db.add_login_activity(osu_user.id),
+        state.db.upsert_user(osu_user, true)
+    )?;
     Ok(redirect_response)
 }
 

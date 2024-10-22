@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use mapper_influences_backend_rs::database::{numerical_thing, DatabaseClient};
 use mapper_influences_backend_rs::osu_api::Group;
 use ordermap::OrderSet;
@@ -93,7 +94,6 @@ pub struct InfluenceWithReferences {
     beatmaps: Vec<i64>,
     influence_type: u8,
     description: String,
-    order: u8,
 }
 impl From<Influence> for InfluenceWithReferences {
     fn from(influence: Influence) -> Self {
@@ -103,7 +103,6 @@ impl From<Influence> for InfluenceWithReferences {
             beatmaps: influence.beatmaps,
             influence_type: influence.influence_type,
             description: influence.description,
-            order: 0,
         }
     }
 }
@@ -163,28 +162,37 @@ async fn main() {
         .up()
         .await
         .expect("Failed to apply migrations");
+    println!("Migration done");
 
     db.get_inner_ref()
         .query("INSERT INTO user ($values)")
         .bind(("values", full_users.clone()))
         .await
         .unwrap();
+    println!("User insertion done");
 
     let db_influences: Vec<InfluenceWithReferences> = influences
         .into_iter()
         .map(InfluenceWithReferences::from)
         .collect();
 
-    db.get_inner_ref()
-        .query("INSERT RELATION INTO influenced_by ($values)")
-        .bind(("values", db_influences))
-        .await
-        .unwrap();
+    // idk why but without loop, IT's extremely slow.
+    // probably there will be delay in live db. so use custom order tokio spawn thing
+    for influence in db_influences {
+        db.get_inner_ref()
+            .query("INSERT RELATION INTO influenced_by ($values)")
+            .bind(("values", influence))
+            .await
+            .unwrap();
+    }
 
-    // Updating the custom orders
-    // TODO: put default ordering to users without any ordering
-    // one way would be to add influences one by one so the sorting would be automatially done
-    // technically letting this stay like this shouldn't be a problem.
+    println!("Influence insertion done");
+
+    // WARN: BE EXTREMELY CAUTIOUS WITH THIS!!!!
+    // YOU MIGHT ACCIDENTALLY DELETE PROD DATA
+    // Deleting ADD_INFLUENCE events after adding data.
+    db.get_inner_ref().query("delete activity").await.unwrap();
+
     let mut handlers = Vec::new();
     let arc_db = Arc::new(db);
     for user in full_users {
@@ -207,8 +215,7 @@ async fn main() {
         });
         handlers.push(handler);
     }
-    for handler in handlers {
-        handler.await.unwrap();
-    }
+    join_all(handlers).await;
+    println!("custom order insertion done");
     println!("done");
 }

@@ -27,6 +27,9 @@ pub enum AppError {
     #[error("Map with id {0} could not be found on osu! API")]
     NonExistingMap(u32),
 
+    #[error("Tokio task error: {0}")]
+    TaskJoin(#[from] tokio::task::JoinError),
+
     #[error("Error related to Sephomore: {0}")]
     SephomoreError(#[from] tokio::sync::AcquireError),
 
@@ -59,6 +62,7 @@ impl IntoResponse for AppError {
             | AppError::Jwt(_)
             | AppError::Mutex
             | AppError::SerdeJson(_)
+            | AppError::TaskJoin(_)
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie | AppError::JwtVerification => StatusCode::UNAUTHORIZED,
             AppError::BioTooLong | AppError::MissingLayerJson => StatusCode::UNPROCESSABLE_ENTITY,
