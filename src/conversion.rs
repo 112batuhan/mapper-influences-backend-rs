@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
+use std::thread::sleep_ms;
+use std::time::Duration;
 use surrealdb::sql::Thing;
 use surrealdb_migrations::MigrationRunner;
 
@@ -176,15 +178,11 @@ async fn main() {
         .map(InfluenceWithReferences::from)
         .collect();
 
-    // idk why but without loop, IT's extremely slow.
-    // probably there will be delay in live db. so use custom order tokio spawn thing
-    for influence in db_influences {
-        db.get_inner_ref()
-            .query("INSERT RELATION INTO influenced_by ($values)")
-            .bind(("values", influence))
-            .await
-            .unwrap();
-    }
+    db.get_inner_ref()
+        .query("INSERT RELATION INTO influenced_by ($values)")
+        .bind(("values", db_influences))
+        .await
+        .unwrap();
 
     println!("Influence insertion done");
 
