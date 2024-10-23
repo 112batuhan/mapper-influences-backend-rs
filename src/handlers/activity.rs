@@ -1,79 +1,117 @@
 use std::{collections::VecDeque, net::SocketAddr};
 
 use axum::{
-    extract::{ws::WebSocket, ConnectInfo, WebSocketUpgrade},
-    response::IntoResponse,
+    extract::{
+        ws::{Message, WebSocket},
+        ConnectInfo, WebSocketUpgrade,
+    },
+    response::Response,
+    Extension,
 };
 use serde::{Deserialize, Serialize};
+use surrealdb::sql::Datetime;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 
-use crate::{
-    database::{influence::InfluenceWithoutBeatmaps, user::UserCondensed},
-    osu_api::OsuBeatmapCondensed,
-};
+use crate::{database::user::UserCondensed, error::AppError, osu_api::OsuBeatmapCondensed};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ActivityType {
-    EditBio,
-    AddBeatmap,
-    RemoveBeatmap,
-    AddInfluence,
-    RemoveInfluence,
-    EditInfluence,
-    AddInfluenceBeatmap,
-    RemoveInfluenceBeatmap,
+#[derive(Serialize, Deserialize)]
+pub struct ActivityResponseCommonFields {
+    id: String,
+    user: UserCondensed,
+    created_at: Datetime,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "event_type", rename_all = "SCREAMING_SNAKE_CASE")]
+enum Activity {
+    Login {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+    },
+    AddInfluence {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        influenced_by: UserCondensed,
+    },
+    RemoveInfluence {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        influenced_by: UserCondensed,
+    },
+    AddInfluenceBeatmap {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        beatmap: OsuBeatmapCondensed,
+    },
+    RemoveInfluenceBeatmap {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        beatmap: OsuBeatmapCondensed,
+    },
+    AddUserBeatmap {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        beatmap: OsuBeatmapCondensed,
+    },
+    RemoveUserBeatmap {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        beatmap: OsuBeatmapCondensed,
+    },
+    EditInfluenceDesc {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        description: String,
+    },
+    EditInfluenceType {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        influence_type: u8,
+    },
+    EditBio {
+        #[serde(flatten)]
+        common: ActivityResponseCommonFields,
+        bio: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ActivityGroup {
-    Beatmap,
+    UserBeatmap,
     InfluenceAdd,
     InfluenceRemove,
     InfluenceEdit,
     InfluenceBeatmap,
     Bio,
+    Other,
 }
 
-// Implement a method on ActivityType to return the corresponding ActivityGroup
-impl ActivityType {
+impl Activity {
     pub fn group(&self) -> ActivityGroup {
         match self {
-            ActivityType::EditBio => ActivityGroup::Bio,
-            ActivityType::AddBeatmap => ActivityGroup::Beatmap,
-            ActivityType::RemoveBeatmap => ActivityGroup::Beatmap,
-            ActivityType::AddInfluence => ActivityGroup::InfluenceAdd,
-            ActivityType::RemoveInfluence => ActivityGroup::InfluenceRemove,
-            ActivityType::EditInfluence => ActivityGroup::InfluenceEdit,
-            ActivityType::AddInfluenceBeatmap => ActivityGroup::InfluenceBeatmap,
-            ActivityType::RemoveInfluenceBeatmap => ActivityGroup::InfluenceBeatmap,
+            Activity::Login { .. } => ActivityGroup::Other,
+            Activity::EditBio { .. } => ActivityGroup::Bio,
+            Activity::AddUserBeatmap { .. } => ActivityGroup::UserBeatmap,
+            Activity::RemoveUserBeatmap { .. } => ActivityGroup::UserBeatmap,
+            Activity::AddInfluence { .. } => ActivityGroup::InfluenceAdd,
+            Activity::RemoveInfluence { .. } => ActivityGroup::InfluenceRemove,
+            Activity::EditInfluenceDesc { .. } => ActivityGroup::InfluenceEdit,
+            Activity::EditInfluenceType { .. } => ActivityGroup::InfluenceEdit,
+            Activity::AddInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
+            Activity::RemoveInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ActivityDetails {
-    pub influenced_to: Option<InfluenceWithoutBeatmaps>,
-    pub beatmap: Option<OsuBeatmapCondensed>,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Activity {
-    #[serde(rename = "type")]
-    pub activity_type: ActivityType,
-    pub user: UserCondensed,
-    pub datetime: std::time::SystemTime,
-    pub details: ActivityDetails,
-}
 pub struct ActivityTracker {
     data_queue: VecDeque<Activity>,
     queue_size: u8,
-    activity_broadcaster: Sender<Activity>,
+    activity_broadcaster: Sender<String>,
 }
 
 impl ActivityTracker {
     async fn new(queue_size: u8) -> ActivityTracker {
-        let (broadcast_sender, _broadcast_receiver) = broadcast::channel(10);
+        let (broadcast_sender, _broadcast_receiver) = broadcast::channel(50);
         ActivityTracker {
             data_queue: VecDeque::new(),
             queue_size,
@@ -81,19 +119,48 @@ impl ActivityTracker {
         }
     }
 
-    async fn new_connection(&self) -> (Vec<Activity>, Receiver<Activity>) {
-        (
-            self.data_queue.iter().cloned().collect::<Vec<Activity>>(),
+    fn new_connection(&self) -> Result<(String, Receiver<String>), AppError> {
+        Ok((
+            serde_json::to_string(&self.data_queue)?,
             self.activity_broadcaster.subscribe(),
-        )
+        ))
+    }
+
+    fn spam_prevention(&self, new_activity: Activity) -> bool {
+        true
     }
 }
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
+    Extension(activity_tracker): Extension<ActivityTracker>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, addr))
+) -> Result<Response, AppError> {
+    let (initial_message, broadcast_receiver) = activity_tracker.new_connection()?;
+    let upgrade_response = ws
+        .on_upgrade(move |socket| handle_socket(socket, addr, initial_message, broadcast_receiver));
+    Ok(upgrade_response)
 }
 
-async fn handle_socket(mut socket: WebSocket, who: SocketAddr) {}
+// I hope we don't have to manually handle pings. Axum documentation claims that it's done
+// automatically in background. But in my latest project, I had to do it manually since client
+// library was sending ping messages in text format instead of its dedicated message type
+// maybe that's how it's supposed to be? I don't think so but whatever
+async fn handle_socket(
+    mut websocket: WebSocket,
+    address: SocketAddr,
+    initial_data: String,
+    mut broadcast_receiver: Receiver<String>,
+) {
+    if let Err(error) = websocket.send(Message::Text(initial_data)).await {
+        tracing::error!("Error while sending message to {}: {}", address, error);
+    }
+
+    while let Ok(new_activity_string) = broadcast_receiver.recv().await {
+        if let Err(error) = websocket.send(Message::Text(new_activity_string)).await {
+            tracing::error!("Error while sending message to {}: {}", address, error);
+        } else {
+            break;
+        }
+    }
+}
