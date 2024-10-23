@@ -3607,7 +3607,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e46a2036019fdb888131db7a4c847a1063a7493f971ed94ea82c67eada63ca54"
 dependencies = [
  "serde",
- "serde_derive",
+ "serde_derive 1.0.210 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3856,10 +3856,9 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 [[package]]
 name = "serde"
 version = "1.0.210"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8e3592472072e6e22e0a54d5904d9febf8508f65fb8552499a1abc7d1078c3a"
+source = "git+https://github.com/frederik-uni/serde#1286b8a0e007fccfe7eaa25ca19dad8bc0fc7208"
 dependencies = [
- "serde_derive",
+ "serde_derive 1.0.210 (git+https://github.com/frederik-uni/serde)",
 ]
 
 [[package]]
@@ -3876,6 +3875,16 @@ name = "serde_derive"
 version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "243902eda00fad750862fc144cea25caca5e20d615af0a81bee94ca738f1df1f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.79",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.210"
+source = "git+https://github.com/frederik-uni/serde#1286b8a0e007fccfe7eaa25ca19dad8bc0fc7208"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3953,7 +3962,7 @@ dependencies = [
  "indexmap 1.9.3",
  "indexmap 2.6.0",
  "serde",
- "serde_derive",
+ "serde_derive 1.0.210 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json",
  "serde_with_macros",
  "time",

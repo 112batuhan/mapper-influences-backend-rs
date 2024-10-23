@@ -1,25 +1,25 @@
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::{Datetime, Thing};
+use surrealdb::{sql::Datetime, RecordId};
 
 use crate::error::AppError;
 
 use super::{numerical_thing, DatabaseClient};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ActivityInfluence {
-    out: Thing,
+    out: RecordId,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ActivityCommonDbFields {
-    id: Thing,
-    user: Thing,
+    id: RecordId,
+    user: RecordId,
     created_at: Datetime,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "event_type", rename_all = "SCREAMING_SNAKE_CASE")]
-enum DbActivity {
+pub enum DbActivity {
     Login {
         #[serde(flatten)]
         common: ActivityCommonDbFields,
@@ -87,14 +87,18 @@ impl DatabaseClient {
         Ok(())
     }
 
-    pub async fn get_activities(&self, limit: u32, start: u32) -> Result<(), AppError> {
-        self.db
-            .query(
-                r#"
-                 Select * from activity 
-                "#,
-            )
-            .await?;
-        Ok(())
+    pub async fn get_activities(
+        &self,
+        limit: u32,
+        start: u32,
+    ) -> Result<Vec<DbActivity>, AppError> {
+        let activities = self
+            .db
+            .query("SELECT * FROM activities LIMIT $limit START &start ")
+            .bind(("limit", limit))
+            .bind(("start", start))
+            .await?
+            .take(0)?;
+        Ok(activities)
     }
 }

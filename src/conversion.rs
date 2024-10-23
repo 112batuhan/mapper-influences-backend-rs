@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
-use std::thread::sleep_ms;
-use std::time::Duration;
 use surrealdb::sql::Thing;
 use surrealdb_migrations::MigrationRunner;
 
