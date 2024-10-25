@@ -8,6 +8,9 @@ use crate::{
 use super::{numerical_thing, DatabaseClient};
 
 impl DatabaseClient {
+    // Can't automate it in database
+    // db has no way of differentiating login and influence add activities
+    // we update the user when these two happens
     pub async fn add_login_activity(&self, user_id: u32) -> Result<(), AppError> {
         self.db
             .query(

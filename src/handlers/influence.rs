@@ -2,6 +2,7 @@ use axum::{
     extract::{Path, State},
     Extension, Json,
 };
+use futures::try_join;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, sync::Arc};
@@ -36,11 +37,13 @@ pub async fn add_influence(
         .request
         .get_user_osu(&auth_data.osu_token, influenced_to)
         .await?;
-    state.db.upsert_user(target_user, false).await?;
-    state
-        .db
-        .add_influence_relation(auth_data.user_id, influenced_to)
-        .await?;
+
+    try_join!(
+        state.db.upsert_user(target_user, false),
+        state
+            .db
+            .add_influence_relation(auth_data.user_id, influenced_to)
+    )?;
     Ok(())
 }
 
