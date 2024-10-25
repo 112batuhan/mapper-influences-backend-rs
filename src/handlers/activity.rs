@@ -9,68 +9,68 @@ use axum::{
     Extension,
 };
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Datetime;
+use surrealdb::{sql::Datetime, RecordId};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 
-use crate::{database::user::UserCondensed, error::AppError, osu_api::OsuBeatmapCondensed};
+use crate::{database::user::UserCondensed, error::AppError, osu_api::BeatmapEnum};
 
-#[derive(Serialize, Deserialize)]
-pub struct ActivityResponseCommonFields {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ActivityCommonFields {
     id: String,
     user: UserCondensed,
     created_at: Datetime,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "event_type", rename_all = "SCREAMING_SNAKE_CASE")]
-enum Activity {
+pub enum Activity {
     Login {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
+        common: ActivityCommonFields,
     },
     AddInfluence {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
-        influenced_by: UserCondensed,
+        common: ActivityCommonFields,
+        influence: UserCondensed,
     },
     RemoveInfluence {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
-        influenced_by: UserCondensed,
+        common: ActivityCommonFields,
+        influence: UserCondensed,
     },
     AddInfluenceBeatmap {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
-        beatmap: OsuBeatmapCondensed,
+        common: ActivityCommonFields,
+        beatmap: BeatmapEnum,
     },
     RemoveInfluenceBeatmap {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
-        beatmap: OsuBeatmapCondensed,
+        common: ActivityCommonFields,
+        beatmap: BeatmapEnum,
     },
     AddUserBeatmap {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
-        beatmap: OsuBeatmapCondensed,
+        common: ActivityCommonFields,
+        beatmap: BeatmapEnum,
     },
     RemoveUserBeatmap {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
-        beatmap: OsuBeatmapCondensed,
+        common: ActivityCommonFields,
+        beatmap: BeatmapEnum,
     },
     EditInfluenceDesc {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
+        common: ActivityCommonFields,
         description: String,
     },
     EditInfluenceType {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
+        common: ActivityCommonFields,
         influence_type: u8,
     },
     EditBio {
         #[serde(flatten)]
-        common: ActivityResponseCommonFields,
+        common: ActivityCommonFields,
         bio: String,
     },
 }

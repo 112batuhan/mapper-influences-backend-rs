@@ -201,6 +201,13 @@ impl OsuBeatmapCondensed {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BeatmapEnum {
+    Id(u32),
+    Data(OsuBeatmapCondensed),
+}
+
 /// Also has `refresh_token` but we don't need it
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OsuAuthToken {
