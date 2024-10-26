@@ -75,7 +75,7 @@ pub async fn user_data_handle(
             //NOTE: Possible fail point, properly handle errors
             //there could be missing maps but extremely unlikely
             let user = users.get(&beatmap.user_id)?;
-            let beatmap_small = OsuBeatmapSmall::from_osu_multiple_and_user_data(
+            let beatmap_small = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
                 beatmap,
                 user.username.clone(),
                 user.avatar_url.clone(),

@@ -185,7 +185,7 @@ pub async fn get_user_influences(
                     //there could be missing maps but extremely unlikely
                     let beatmap = beatmaps.get(&beatmap)?;
                     let user = users.get(&beatmap.user_id)?;
-                    let beatmap_small = OsuBeatmapSmall::from_osu_multiple_and_user_data(
+                    let beatmap_small = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
                         beatmap.clone(),
                         user.username.clone(),
                         user.avatar_url.clone(),

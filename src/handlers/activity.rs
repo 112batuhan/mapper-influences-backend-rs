@@ -231,6 +231,8 @@ impl ActivityTracker {
             .await?;
 
         // really shotty, there has to be a better way but i'm sleepy af
+        // TODO: maybe write a function with option return
+        // type so that you can use ? outside of filter_map
         let _ = self
             .activity_queue
             .iter_mut()
@@ -239,7 +241,7 @@ impl ActivityTracker {
                 // TODO: proper error handling plx
                 let beatmap = beatmaps.remove(&id)?;
                 let user = users.remove(&beatmap.user_id)?;
-                let beatmap_small = OsuBeatmapSmall::from_osu_multiple_and_user_data(
+                let beatmap_small = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
                     beatmap,
                     user.username,
                     user.avatar_url,
