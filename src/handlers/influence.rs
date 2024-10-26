@@ -11,7 +11,7 @@ use crate::{
     database::influence::Influence,
     error::AppError,
     jwt::AuthData,
-    osu_api::{BeatmapEnum, OsuBeatmapSmall, OsuMultipleUserResponse},
+    osu_api::{BeatmapEnum, OsuBeatmapSmall, OsuMultipleUser},
     AppState,
 };
 
@@ -59,7 +59,7 @@ pub async fn add_influence_beatmap(
     State(state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
     let beatmap = state
-        .osu_beatmap_multi_requester
+        .beatmap_requester
         .clone()
         .get_multiple_osu(&[beatmap_id], &auth_data.osu_token)
         .await?;
@@ -139,7 +139,7 @@ pub async fn get_user_influences(
         .collect();
     // Request beatmaps to populate beatmap data
     let beatmaps = state
-        .osu_beatmap_multi_requester
+        .beatmap_requester
         .clone()
         .get_multiple_osu(&beatmaps_to_request, &auth_data.osu_token)
         .await?;
@@ -152,7 +152,7 @@ pub async fn get_user_influences(
     let users_to_request: Vec<u32> = users_to_request.into_iter().collect();
     // Users queried
     let mut users = state
-        .osu_user_multi_requester
+        .user_requester
         .clone()
         .get_multiple_osu(&users_to_request, &auth_data.osu_token)
         .await?;
@@ -160,7 +160,7 @@ pub async fn get_user_influences(
     users.extend(influences.iter().map(|mention| {
         (
             mention.id,
-            OsuMultipleUserResponse {
+            OsuMultipleUser {
                 id: mention.id,
                 avatar_url: mention.avatar_url.clone(),
                 username: mention.username.clone(),

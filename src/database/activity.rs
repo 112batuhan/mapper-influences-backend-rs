@@ -82,10 +82,3 @@ impl DatabaseClient {
         Ok(stream)
     }
 }
-#[tokio::test]
-async fn test() {
-    dotenvy::dotenv().ok();
-    let db = DatabaseClient::new().await.unwrap();
-    let a = db.get_activities(100, 0).await.unwrap();
-    dbg!(a);
-}

@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, net::SocketAddr};
+use std::{collections::VecDeque, net::SocketAddr, sync::Arc};
 
 use axum::{
     extract::{
@@ -15,7 +15,10 @@ use tokio::sync::broadcast::{self, Receiver, Sender};
 use crate::{
     database::{user::UserSmall, DatabaseClient},
     error::AppError,
-    osu_api::BeatmapEnum,
+    osu_api::{
+        BeatmapEnum, CachedRequester, CredentialsGrantClient, OsuBeatmapSmall, OsuMultipleBeatmap,
+        OsuMultipleUser,
+    },
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -105,29 +108,74 @@ impl Activity {
             Activity::RemoveInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
         }
     }
+
+    pub fn get_beatmap_id(&self) -> Option<u32> {
+        let beatmap_enum = match self {
+            Activity::AddInfluenceBeatmap { beatmap, .. }
+            | Activity::RemoveInfluenceBeatmap { beatmap, .. }
+            | Activity::AddUserBeatmap { beatmap, .. }
+            | Activity::RemoveUserBeatmap { beatmap, .. } => Some(beatmap),
+            _ => None,
+        }?;
+        match beatmap_enum {
+            BeatmapEnum::Id(id) => Some(*id),
+            BeatmapEnum::Data(_) => None,
+        }
+    }
+
+    pub fn swap_beatmap_enum(&mut self, beatmap_with_data: BeatmapEnum) {
+        match self {
+            Activity::AddInfluenceBeatmap {
+                ref mut beatmap, ..
+            }
+            | Activity::RemoveInfluenceBeatmap {
+                ref mut beatmap, ..
+            }
+            | Activity::AddUserBeatmap {
+                ref mut beatmap, ..
+            }
+            | Activity::RemoveUserBeatmap {
+                ref mut beatmap, ..
+            } => *beatmap = beatmap_with_data,
+            _ => {}
+        }
+    }
 }
 
 pub struct ActivityTracker {
-    data_queue: VecDeque<Activity>,
+    activity_queue: VecDeque<Activity>,
     queue_size: u8,
     activity_broadcaster: Sender<String>,
+    user_requester: Arc<CachedRequester<OsuMultipleUser>>,
+    beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
+    credentials_grant_client: Arc<CredentialsGrantClient>,
 }
 
 impl ActivityTracker {
-    pub async fn new(db: &DatabaseClient, queue_size: u8) -> Result<ActivityTracker, AppError> {
+    pub async fn new(
+        db: &DatabaseClient,
+        queue_size: u8,
+        user_requester: Arc<CachedRequester<OsuMultipleUser>>,
+        beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
+        credentials_grant_client: Arc<CredentialsGrantClient>,
+    ) -> Result<ActivityTracker, AppError> {
         let (broadcast_sender, _broadcast_receiver) = broadcast::channel(50);
         let mut activity_tracker = ActivityTracker {
-            data_queue: VecDeque::new(),
+            activity_queue: VecDeque::new(),
             queue_size,
             activity_broadcaster: broadcast_sender,
+            user_requester,
+            beatmap_requester,
+            credentials_grant_client,
         };
         activity_tracker.set_initial_activities(db).await?;
+        activity_tracker.swap_beatmaps().await?;
         Ok(activity_tracker)
     }
 
     pub fn new_connection(&self) -> Result<(String, Receiver<String>), AppError> {
         Ok((
-            serde_json::to_string(&self.data_queue)?,
+            serde_json::to_string(&self.activity_queue)?,
             self.activity_broadcaster.subscribe(),
         ))
     }
@@ -145,9 +193,9 @@ impl ActivityTracker {
             let activity_chunk_len = activity_chunk.len();
             for activity in activity_chunk {
                 if self.spam_prevention(&activity) {
-                    self.data_queue.push_front(activity)
+                    self.activity_queue.push_front(activity)
                 }
-                if self.data_queue.len() >= self.queue_size.into() {
+                if self.activity_queue.len() >= self.queue_size.into() {
                     break 'outer;
                 }
             }
@@ -158,6 +206,52 @@ impl ActivityTracker {
             }
         }
         Ok(())
+    }
+
+    pub async fn swap_beatmaps(&mut self) -> Result<(), AppError> {
+        let beatmaps_to_request: Vec<u32> = self
+            .activity_queue
+            .iter()
+            .filter_map(|activity| activity.get_beatmap_id())
+            .collect();
+
+        let token = self.credentials_grant_client.get_access_token();
+
+        let mut beatmaps = self
+            .beatmap_requester
+            .clone()
+            .get_multiple_osu(&beatmaps_to_request, token)
+            .await?;
+
+        let users_to_request: Vec<u32> = beatmaps.values().map(|beatmap| beatmap.user_id).collect();
+        let mut users = self
+            .user_requester
+            .clone()
+            .get_multiple_osu(&users_to_request, token)
+            .await?;
+
+        // really shotty, there has to be a better way but i'm sleepy af
+        let _ = self
+            .activity_queue
+            .iter_mut()
+            .filter_map(|activity| {
+                let id = activity.get_beatmap_id()?;
+                // TODO: proper error handling plx
+                let beatmap = beatmaps.remove(&id)?;
+                let user = users.remove(&beatmap.user_id)?;
+                let beatmap_small = OsuBeatmapSmall::from_osu_multiple_and_user_data(
+                    beatmap,
+                    user.username,
+                    user.avatar_url,
+                );
+                activity.swap_beatmap_enum(BeatmapEnum::Data(beatmap_small));
+                Some(())
+            })
+            .collect::<Vec<()>>();
+        Ok(())
+    }
+    pub fn test(&self) {
+        dbg!(&self.activity_queue);
     }
 }
 

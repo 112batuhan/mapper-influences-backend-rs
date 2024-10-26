@@ -5,9 +5,7 @@ use aide::axum::ApiRouter;
 use axum::middleware;
 use database::DatabaseClient;
 use jwt::JwtUtil;
-use osu_api::{
-    CachedRequester, OsuMultipleBeatmapResponse, OsuMultipleUserResponse, RequestClient,
-};
+use osu_api::{CachedRequester, OsuMultipleBeatmap, OsuMultipleUser, RequestClient};
 
 pub mod custom_cache;
 pub mod database;
@@ -20,8 +18,8 @@ pub struct AppState {
     pub db: DatabaseClient,
     pub request: Arc<RequestClient>,
     pub jwt: JwtUtil,
-    pub osu_user_multi_requester: Arc<CachedRequester<OsuMultipleUserResponse>>,
-    pub osu_beatmap_multi_requester: Arc<CachedRequester<OsuMultipleBeatmapResponse>>,
+    pub user_requester: Arc<CachedRequester<OsuMultipleUser>>,
+    pub beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
 }
 
 impl AppState {
@@ -33,12 +31,12 @@ impl AppState {
                 .expect("failed to initialize db connection"),
             request: request.clone(),
             jwt: JwtUtil::new_jwt(),
-            osu_user_multi_requester: Arc::new(CachedRequester::new(
+            user_requester: Arc::new(CachedRequester::new(
                 request.clone(),
                 "https://osu.ppy.sh/api/v2/users",
                 24600,
             )),
-            osu_beatmap_multi_requester: Arc::new(CachedRequester::new(
+            beatmap_requester: Arc::new(CachedRequester::new(
                 request,
                 "https://osu.ppy.sh/api/v2/beatmaps",
                 86400,

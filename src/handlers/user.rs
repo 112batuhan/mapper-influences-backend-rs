@@ -11,7 +11,7 @@ use crate::{
     database::user::User,
     error::AppError,
     jwt::AuthData,
-    osu_api::{cached_osu_user_request, BeatmapEnum, OsuBeatmapSmall, OsuMultipleUserResponse},
+    osu_api::{cached_osu_user_request, BeatmapEnum, OsuBeatmapSmall, OsuMultipleUser},
     AppState,
 };
 
@@ -40,7 +40,7 @@ pub async fn user_data_handle(
         .copied()
         .collect();
     let beatmaps = state
-        .osu_beatmap_multi_requester
+        .beatmap_requester
         .clone()
         .get_multiple_osu(&beatmaps_to_request, &osu_token)
         .await?;
@@ -53,7 +53,7 @@ pub async fn user_data_handle(
 
     // users queried
     let mut users = state
-        .osu_user_multi_requester
+        .user_requester
         .clone()
         .get_multiple_osu(&users_needed, &osu_token)
         .await?;
@@ -61,7 +61,7 @@ pub async fn user_data_handle(
     // Db user put back to the user map
     users.insert(
         user.id,
-        OsuMultipleUserResponse {
+        OsuMultipleUser {
             id: user.id,
             avatar_url: user.avatar_url.clone(),
             username: user.username.clone(),
@@ -144,7 +144,7 @@ pub async fn add_user_beatmap(
     State(state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
     let beatmap = state
-        .osu_beatmap_multi_requester
+        .beatmap_requester
         .clone()
         .get_multiple_osu(&[beatmap_id], &auth_data.osu_token)
         .await?;

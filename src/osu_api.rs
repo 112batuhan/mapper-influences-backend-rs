@@ -35,12 +35,12 @@ pub struct UserId {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub struct OsuMultipleUserResponse {
+pub struct OsuMultipleUser {
     pub id: u32,
     pub avatar_url: String,
     pub username: String,
 }
-impl GetID for OsuMultipleUserResponse {
+impl GetID for OsuMultipleUser {
     fn get_id(&self) -> u32 {
         self.id
     }
@@ -141,7 +141,7 @@ pub struct OsuSearchMapResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub struct OsuMultipleBeatmapResponse {
+pub struct OsuMultipleBeatmap {
     pub id: u32,
     pub difficulty_rating: f32,
     pub mode: String,
@@ -151,7 +151,7 @@ pub struct OsuMultipleBeatmapResponse {
     pub beatmapset: OsuMultipleBeatmapsetResponse,
 }
 
-impl GetID for OsuMultipleBeatmapResponse {
+impl GetID for OsuMultipleBeatmap {
     fn get_id(&self) -> u32 {
         self.id
     }
@@ -181,7 +181,7 @@ pub struct OsuBeatmapSmall {
 
 impl OsuBeatmapSmall {
     pub fn from_osu_multiple_and_user_data(
-        osu_multiple: OsuMultipleBeatmapResponse,
+        osu_multiple: OsuMultipleBeatmap,
         user_name: String,
         user_avatar_url: String,
     ) -> OsuBeatmapSmall {
@@ -427,6 +427,9 @@ impl RequestClient {
     }
 }
 
+/// TODO: make a trait, implement default new check_token expiration thing, then implement for
+/// [`CredentialsGrantClient`] and [`CachedRequester`]
+///
 /// A wrapper around [`RequestClient`] to make calls using Client Credentials Grant auth method
 pub struct CredentialsGrantClient {
     client: RequestClient,
@@ -457,6 +460,10 @@ impl CredentialsGrantClient {
             self.expires_in = Duration::from_secs(token.expires_in.into())
         }
         Ok(())
+    }
+
+    pub fn get_access_token(&self) -> &str {
+        &self.access_token
     }
 
     pub async fn get_user_osu(&mut self, user_id: u32) -> Result<UserOsu, AppError> {
