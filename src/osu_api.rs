@@ -433,6 +433,16 @@ impl RequestClient {
 /// [`CredentialsGrantClient`] and [`CachedRequester`]
 ///
 /// A wrapper around [`RequestClient`] to make calls using Client Credentials Grant auth method
+///
+/// TODO: Later thought, don't make it a wrapper and make it standalone to let it provide tokens only
+/// We only need to use this for activities and daily updates.
+/// Traits and implementations are overkill, just store an arc reference and keep reusing.
+/// We gotta still store a client, just pass the client we use everywhere else, don't create a new one.
+/// This is going to make things harder for buco, but I will help ;)
+///
+/// IDK MAN JUST SLEEP AND THEN THINK
+/// THERE ARE MILLION WAYS TO DO THIS ANYWAY
+/// YOU WILL FIND A WAY
 pub struct CredentialsGrantClient {
     client: RequestClient,
     access_token: String,
