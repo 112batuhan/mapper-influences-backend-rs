@@ -1,12 +1,15 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::AppError, osu_api::Group};
+use crate::{
+    error::AppError,
+    osu_api::{BeatmapEnum, Group},
+};
 
 use super::{numerical_thing, DatabaseClient};
 
-#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Debug)]
-pub struct InfluenceWithoutBeatmaps {
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Clone, Debug)]
+pub struct Influence {
     pub id: u32,
     pub country_code: String,
     pub country_name: String,
@@ -17,13 +20,7 @@ pub struct InfluenceWithoutBeatmaps {
     pub influence_type: u8,
     pub description: String,
     pub mention_count: u32,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InfluenceDb {
-    #[serde(flatten)]
-    pub data: InfluenceWithoutBeatmaps,
-    pub beatmaps: Vec<u32>,
+    pub beatmaps: Vec<BeatmapEnum>,
 }
 
 impl DatabaseClient {
@@ -113,8 +110,8 @@ impl DatabaseClient {
         Ok(())
     }
 
-    pub async fn get_influences(&self, user_id: u32) -> Result<Vec<InfluenceDb>, AppError> {
-        let influences: Vec<InfluenceDb> = self
+    pub async fn get_influences(&self, user_id: u32) -> Result<Vec<Influence>, AppError> {
+        let influences: Vec<Influence> = self
             .db
             .query(
                 "
@@ -143,8 +140,8 @@ impl DatabaseClient {
         Ok(influences)
     }
 
-    pub async fn get_mentions(&self, user_id: u32) -> Result<Vec<InfluenceDb>, AppError> {
-        let influences: Vec<InfluenceDb> = self
+    pub async fn get_mentions(&self, user_id: u32) -> Result<Vec<Influence>, AppError> {
+        let influences: Vec<Influence> = self
             .db
             .query(
                 "

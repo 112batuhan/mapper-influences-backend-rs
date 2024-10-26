@@ -8,7 +8,7 @@ use cached::proc_macro::cached;
 
 use crate::{
     custom_cache::CustomCache,
-    database::user::UserCondensed,
+    database::user::UserSmall,
     error::AppError,
     jwt::AuthData,
     osu_api::{cached_osu_user_request, OsuSearchMapResponse},
@@ -16,7 +16,7 @@ use crate::{
 };
 
 #[cached(
-    ty = "CustomCache<String, Json<Vec<UserCondensed>>>",
+    ty = "CustomCache<String, Json<Vec<UserSmall>>>",
     create = "{CustomCache::new(600)}",
     convert = r#"{query.clone()}"#,
     result = true
@@ -25,7 +25,7 @@ pub async fn osu_user_search(
     Path(query): Path<String>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<UserCondensed>>, AppError> {
+) -> Result<Json<Vec<UserSmall>>, AppError> {
     let user_search_osu = state
         .request
         .search_user_osu(&auth_data.osu_token, &query)

@@ -165,7 +165,7 @@ pub struct OsuMultipleBeatmapsetResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq)]
-pub struct OsuBeatmapCondensed {
+pub struct OsuBeatmapSmall {
     pub id: u32,
     pub difficulty_rating: f32,
     pub mode: String,
@@ -179,13 +179,13 @@ pub struct OsuBeatmapCondensed {
     pub covers: String,
 }
 
-impl OsuBeatmapCondensed {
+impl OsuBeatmapSmall {
     pub fn from_osu_multiple_and_user_data(
         osu_multiple: OsuMultipleBeatmapResponse,
         user_name: String,
         user_avatar_url: String,
-    ) -> OsuBeatmapCondensed {
-        OsuBeatmapCondensed {
+    ) -> OsuBeatmapSmall {
+        OsuBeatmapSmall {
             id: osu_multiple.id,
             difficulty_rating: osu_multiple.difficulty_rating,
             mode: osu_multiple.mode,
@@ -201,11 +201,11 @@ impl OsuBeatmapCondensed {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum BeatmapEnum {
+    Data(OsuBeatmapSmall),
     Id(u32),
-    Data(OsuBeatmapCondensed),
 }
 
 /// Also has `refresh_token` but we don't need it

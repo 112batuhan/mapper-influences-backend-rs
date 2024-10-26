@@ -9,15 +9,19 @@ use axum::{
     Extension,
 };
 use serde::{Deserialize, Serialize};
-use surrealdb::{sql::Datetime, RecordId};
+use surrealdb::sql::Datetime;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 
-use crate::{database::user::UserCondensed, error::AppError, osu_api::BeatmapEnum};
+use crate::{
+    database::{user::UserSmall, DatabaseClient},
+    error::AppError,
+    osu_api::BeatmapEnum,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ActivityCommonFields {
     id: String,
-    user: UserCondensed,
+    user: UserSmall,
     created_at: Datetime,
 }
 
@@ -31,12 +35,12 @@ pub enum Activity {
     AddInfluence {
         #[serde(flatten)]
         common: ActivityCommonFields,
-        influence: UserCondensed,
+        influence: UserSmall,
     },
     RemoveInfluence {
         #[serde(flatten)]
         common: ActivityCommonFields,
-        influence: UserCondensed,
+        influence: UserSmall,
     },
     AddInfluenceBeatmap {
         #[serde(flatten)]
@@ -110,24 +114,50 @@ pub struct ActivityTracker {
 }
 
 impl ActivityTracker {
-    async fn new(queue_size: u8) -> ActivityTracker {
+    pub async fn new(db: &DatabaseClient, queue_size: u8) -> Result<ActivityTracker, AppError> {
         let (broadcast_sender, _broadcast_receiver) = broadcast::channel(50);
-        ActivityTracker {
+        let mut activity_tracker = ActivityTracker {
             data_queue: VecDeque::new(),
             queue_size,
             activity_broadcaster: broadcast_sender,
-        }
+        };
+        activity_tracker.set_initial_activities(db).await?;
+        Ok(activity_tracker)
     }
 
-    fn new_connection(&self) -> Result<(String, Receiver<String>), AppError> {
+    pub fn new_connection(&self) -> Result<(String, Receiver<String>), AppError> {
         Ok((
             serde_json::to_string(&self.data_queue)?,
             self.activity_broadcaster.subscribe(),
         ))
     }
 
-    fn spam_prevention(&self, new_activity: Activity) -> bool {
+    pub fn spam_prevention(&self, new_activity: &Activity) -> bool {
         true
+    }
+
+    pub async fn set_initial_activities(&mut self, db: &DatabaseClient) -> Result<(), AppError> {
+        let step_size: usize = 100;
+        'outer: for index in (0..).step_by(step_size) {
+            let activity_chunk = db
+                .get_activities(step_size as u32, index + step_size as u32)
+                .await?;
+            let activity_chunk_len = activity_chunk.len();
+            for activity in activity_chunk {
+                if self.spam_prevention(&activity) {
+                    self.data_queue.push_front(activity)
+                }
+                if self.data_queue.len() >= self.queue_size.into() {
+                    break 'outer;
+                }
+            }
+            // there might not be enough activities to fill the queue
+            // if that's the case, the outer for loop would turn into an infinite loop
+            if activity_chunk_len < step_size {
+                break;
+            }
+        }
+        Ok(())
     }
 }
 

@@ -1,9 +1,6 @@
 use surrealdb::{method::QueryStream, Notification};
 
-use crate::{
-    error::AppError,
-    handlers::activity::{self, Activity},
-};
+use crate::{error::AppError, handlers::activity::Activity};
 
 use super::{numerical_thing, DatabaseClient};
 
@@ -58,13 +55,15 @@ impl DatabaseClient {
     }
 
     pub async fn get_activities(&self, limit: u32, start: u32) -> Result<Vec<Activity>, AppError> {
+        let string = format!(
+            "{} {}",
+            Self::activity_query_string(),
+            "LIMIT $limit START $start"
+        );
+        println!("{string}");
         let activities = self
             .db
-            .query(format!(
-                "{} {}",
-                Self::activity_query_string(),
-                "LIMIT $limit START $start"
-            ))
+            .query(string)
             .bind(("limit", limit))
             .bind(("start", start))
             .await?
@@ -83,7 +82,6 @@ impl DatabaseClient {
         Ok(stream)
     }
 }
-
 #[tokio::test]
 async fn test() {
     dotenvy::dotenv().ok();

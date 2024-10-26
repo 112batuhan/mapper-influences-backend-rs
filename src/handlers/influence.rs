@@ -4,27 +4,20 @@ use axum::{
 };
 use futures::try_join;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::{collections::HashSet, sync::Arc};
 
 use crate::{
-    database::influence::{InfluenceDb, InfluenceWithoutBeatmaps},
+    database::influence::Influence,
     error::AppError,
     jwt::AuthData,
-    osu_api::{OsuBeatmapCondensed, OsuMultipleUserResponse},
+    osu_api::{BeatmapEnum, OsuBeatmapSmall, OsuMultipleUserResponse},
     AppState,
 };
 
 #[derive(Deserialize, JsonSchema)]
 pub struct Description {
     description: String,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InfluenceResponse {
-    #[serde(flatten)]
-    data: InfluenceWithoutBeatmaps,
-    beatmaps: Vec<OsuBeatmapCondensed>,
 }
 
 // TODO: add a return type for this
@@ -124,7 +117,7 @@ pub async fn update_influence_type(
 pub async fn get_user_mentions(
     Path(user_id): Path<u32>,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<InfluenceDb>>, AppError> {
+) -> Result<Json<Vec<Influence>>, AppError> {
     let mentions = state.db.get_mentions(user_id).await?;
     Ok(Json(mentions))
 }
@@ -133,11 +126,15 @@ pub async fn get_user_influences(
     Path(user_id): Path<u32>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<InfluenceResponse>>, AppError> {
+) -> Result<Json<Vec<Influence>>, AppError> {
     let influences = state.db.get_influences(user_id).await?;
     let beatmaps_to_request: Vec<u32> = influences
         .iter()
         .flat_map(|influence| &influence.beatmaps)
+        .filter_map(|maps| match maps {
+            BeatmapEnum::Id(id) => Some(id),
+            BeatmapEnum::Data(_) => None,
+        })
         .copied()
         .collect();
     // Request beatmaps to populate beatmap data
@@ -150,7 +147,7 @@ pub async fn get_user_influences(
     // back to the hashmap that contains the user data.
     let mut users_to_request: HashSet<u32> = beatmaps.values().map(|map| map.user_id).collect();
     influences.iter().for_each(|influence| {
-        users_to_request.remove(&influence.data.id);
+        users_to_request.remove(&influence.id);
     });
     let users_to_request: Vec<u32> = users_to_request.into_iter().collect();
     // Users queried
@@ -162,37 +159,42 @@ pub async fn get_user_influences(
     // DB users are inserted back to the user map
     users.extend(influences.iter().map(|mention| {
         (
-            mention.data.id,
+            mention.id,
             OsuMultipleUserResponse {
-                id: mention.data.id,
-                avatar_url: mention.data.avatar_url.clone(),
-                username: mention.data.username.clone(),
+                id: mention.id,
+                avatar_url: mention.avatar_url.clone(),
+                username: mention.username.clone(),
             },
         )
     }));
     // Influences converted with beatmap data
     let influences = influences
         .into_iter()
-        .map(|influence| {
-            let beatmaps: Vec<OsuBeatmapCondensed> = influence
+        .map(|mut influence| {
+            let beatmaps: Vec<BeatmapEnum> = influence
                 .beatmaps
                 .into_iter()
+                .filter_map(|maps| match maps {
+                    BeatmapEnum::Id(id) => Some(id),
+                    BeatmapEnum::Data(_) => None,
+                })
+                // TODO: Maybe there is a way to refactor this
+                // we have the same thing going on in user handler
                 .filter_map(|beatmap| {
                     //NOTE: Possible fail point, properly handle errors
                     //there could be missing maps but extremely unlikely
                     let beatmap = beatmaps.get(&beatmap)?;
                     let user = users.get(&beatmap.user_id)?;
-                    Some(OsuBeatmapCondensed::from_osu_multiple_and_user_data(
+                    let beatmap_small = OsuBeatmapSmall::from_osu_multiple_and_user_data(
                         beatmap.clone(),
                         user.username.clone(),
                         user.avatar_url.clone(),
-                    ))
+                    );
+                    Some(BeatmapEnum::Data(beatmap_small))
                 })
                 .collect();
-            InfluenceResponse {
-                data: influence.data,
-                beatmaps,
-            }
+            influence.beatmaps = beatmaps;
+            influence
         })
         .collect();
 

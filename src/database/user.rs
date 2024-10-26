@@ -4,13 +4,13 @@ use surrealdb::sql::Thing;
 
 use crate::{
     error::AppError,
-    osu_api::{Group, UserOsu},
+    osu_api::{BeatmapEnum, Group, UserOsu},
 };
 
 use super::{numerical_thing, DatabaseClient};
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
-pub struct UserWithoutBeatmap {
+pub struct User {
     pub id: u32,
     pub username: String,
     pub avatar_url: String,
@@ -26,11 +26,12 @@ pub struct UserWithoutBeatmap {
     pub loved_beatmapset_count: u32,
     pub graveyard_beatmapset_count: u32,
     pub pending_beatmapset_count: u32,
+    pub beatmaps: Vec<BeatmapEnum>,
 }
 
-impl From<UserOsu> for UserWithoutBeatmap {
+impl From<UserOsu> for User {
     fn from(user_osu: UserOsu) -> Self {
-        UserWithoutBeatmap {
+        User {
             id: user_osu.id,
             username: user_osu.username,
             avatar_url: user_osu.avatar_url,
@@ -46,19 +47,13 @@ impl From<UserOsu> for UserWithoutBeatmap {
             loved_beatmapset_count: user_osu.loved_beatmapset_count,
             graveyard_beatmapset_count: user_osu.graveyard_beatmapset_count,
             pending_beatmapset_count: user_osu.pending_beatmapset_count,
+            beatmaps: Vec::new(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
-pub struct UserDb {
-    #[serde(flatten)]
-    pub data: UserWithoutBeatmap,
-    pub beatmaps: Vec<u32>,
-}
-
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq, Eq)]
-pub struct UserCondensed {
+pub struct UserSmall {
     pub id: u32,
     pub username: String,
     pub avatar_url: String,
@@ -68,9 +63,9 @@ pub struct UserCondensed {
     pub ranked_maps: u32,
 }
 
-impl From<UserOsu> for UserCondensed {
+impl From<UserOsu> for UserSmall {
     fn from(user: UserOsu) -> Self {
-        UserCondensed {
+        UserSmall {
             id: user.id,
             username: user.username,
             avatar_url: user.avatar_url,
@@ -206,8 +201,8 @@ impl DatabaseClient {
         Ok(())
     }
 
-    pub async fn get_user_details(&self, user_id: u32) -> Result<UserDb, AppError> {
-        let user_db: Option<UserDb> = self
+    pub async fn get_user_details(&self, user_id: u32) -> Result<User, AppError> {
+        let user_db: Option<User> = self
             .db
             .query(
                 "
@@ -241,12 +236,12 @@ impl DatabaseClient {
     pub async fn get_multiple_user_details(
         &self,
         user_ids: &[u32],
-    ) -> Result<Vec<UserCondensed>, AppError> {
+    ) -> Result<Vec<UserSmall>, AppError> {
         let things: Vec<Thing> = user_ids
             .iter()
             .map(|id| numerical_thing("user", *id))
             .collect();
-        let users_db: Vec<UserCondensed> = self
+        let users_db: Vec<UserSmall> = self
             .db
             .query(
                 "
