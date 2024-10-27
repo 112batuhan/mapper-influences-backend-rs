@@ -230,26 +230,23 @@ impl ActivityTracker {
             .get_multiple_osu(&users_to_request, &token)
             .await?;
 
-        // really shotty, there has to be a better way but i'm sleepy af
-        // TODO: maybe write a function with option return
-        // type so that you can use ? outside of filter_map
-        let _ = self
-            .activity_queue
+        self.activity_queue
             .iter_mut()
             .filter_map(|activity| {
                 let id = activity.get_beatmap_id()?;
                 // TODO: proper error handling plx
                 let beatmap = beatmaps.remove(&id)?;
                 let user = users.remove(&beatmap.user_id)?;
+                Some((activity, beatmap, user))
+            })
+            .for_each(|(activity, beatmap, user)| {
                 let beatmap_small = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
                     beatmap,
                     user.username,
                     user.avatar_url,
                 );
                 activity.swap_beatmap_enum(BeatmapEnum::Data(beatmap_small));
-                Some(())
-            })
-            .collect::<Vec<()>>();
+            });
         Ok(())
     }
     pub fn test(&self) {
