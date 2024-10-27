@@ -17,16 +17,18 @@ aide = { version = "0.13.4", features = ["axum", "axum-extra", "macros"] }
 axum = { version = "0.7.7", features = ["macros", "ws"] }
 axum-extra = { version = "0.9.4", features = ["cookie"] }
 cached = { version = "0.53.1", features = ["async"] }
+chrono = "0.4.38"
 dotenvy = "0.15.7"
 futures = "0.3.31"
 hashlink = "0.9.1"
 http = "1.1.0"
+itertools = "0.13.0"
 jwt-simple = { version = "0.12.10", default-features = false, features = [
     "pure-rust",
 ] }
 ordermap = { version = "0.5.3", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json"] }
-schemars = "0.8.21"
+schemars = { version = "0.8.21", features = ["chrono"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 surrealdb = "2.0.3"

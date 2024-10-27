@@ -3,6 +3,7 @@ use axum::{
     Extension, Json,
 };
 use futures::try_join;
+use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::{collections::HashSet, sync::Arc};
@@ -135,6 +136,7 @@ pub async fn get_user_influences(
             BeatmapEnum::Id(id) => Some(id),
             BeatmapEnum::All(_) => None,
         })
+        .unique()
         .copied()
         .collect();
     // Request beatmaps to populate beatmap data
@@ -147,7 +149,7 @@ pub async fn get_user_influences(
     // back to the hashmap that contains the user data.
     let mut users_to_request: HashSet<u32> = beatmaps.values().map(|map| map.user_id).collect();
     influences.iter().for_each(|influence| {
-        users_to_request.remove(&influence.id);
+        users_to_request.remove(&influence.user_id);
     });
     let users_to_request: Vec<u32> = users_to_request.into_iter().collect();
     // Users queried
@@ -159,9 +161,9 @@ pub async fn get_user_influences(
     // DB users are inserted back to the user map
     users.extend(influences.iter().map(|mention| {
         (
-            mention.id,
+            mention.user_id,
             OsuMultipleUser {
-                id: mention.id,
+                id: mention.user_id,
                 avatar_url: mention.avatar_url.clone(),
                 username: mention.username.clone(),
             },

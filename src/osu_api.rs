@@ -177,12 +177,10 @@ pub struct OsuBeatmapSmall {
     pub user_avatar_url: String,
     pub title: String,
     pub artist: String,
-    pub covers: String,
+    pub cover: String,
 }
 
 impl OsuBeatmapSmall {
-    /// TODO: Maybe change the parameters to take in user directly,
-    /// this is too much work to access username and avatars
     pub fn from_osu_beatmap_and_user_data(
         osu_multiple: OsuMultipleBeatmap,
         user_name: String,
@@ -199,7 +197,7 @@ impl OsuBeatmapSmall {
             user_avatar_url,
             title: osu_multiple.beatmapset.title,
             artist: osu_multiple.beatmapset.artist,
-            covers: osu_multiple.beatmapset.covers.cover,
+            cover: osu_multiple.beatmapset.covers.cover,
         }
     }
 }

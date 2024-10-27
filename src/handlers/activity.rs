@@ -1,16 +1,22 @@
 use std::{collections::VecDeque, net::SocketAddr, sync::Arc};
 
 use axum::{
+    debug_handler,
     extract::{
         ws::{Message, WebSocket},
-        ConnectInfo, WebSocketUpgrade,
+        ConnectInfo, State, WebSocketUpgrade,
     },
     response::Response,
-    Extension,
+    Json,
 };
+use futures::{SinkExt, StreamExt};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Datetime;
-use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio::sync::{
+    broadcast::{self, Receiver, Sender},
+    Mutex,
+};
 
 use crate::{
     database::{user::UserSmall, DatabaseClient},
@@ -19,16 +25,18 @@ use crate::{
         BeatmapEnum, CachedRequester, CredentialsGrantClient, OsuBeatmapSmall, OsuMultipleBeatmap,
         OsuMultipleUser,
     },
+    AppState,
 };
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct ActivityCommonFields {
     id: String,
     user: UserSmall,
+    #[schemars(with = "chrono::DateTime<chrono::Utc>")]
     created_at: Datetime,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 #[serde(tag = "event_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Activity {
     Login {
@@ -173,27 +181,34 @@ impl ActivityTracker {
         Ok(activity_tracker)
     }
 
+    pub fn get_current_queue(&self) -> Vec<Activity> {
+        self.activity_queue.iter().cloned().collect()
+    }
+
+    pub fn get_activity_queue_string(&self) -> Result<String, AppError> {
+        let string = serde_json::to_string(&self.activity_queue)?;
+        Ok(string)
+    }
+
     pub fn new_connection(&self) -> Result<(String, Receiver<String>), AppError> {
         Ok((
-            serde_json::to_string(&self.activity_queue)?,
+            self.get_activity_queue_string()?,
             self.activity_broadcaster.subscribe(),
         ))
     }
 
-    pub fn spam_prevention(&self, new_activity: &Activity) -> bool {
+    pub fn spam_prevention(&self, _new_activity: &Activity) -> bool {
         true
     }
 
     pub async fn set_initial_activities(&mut self, db: &DatabaseClient) -> Result<(), AppError> {
         let step_size: usize = 100;
         'outer: for index in (0..).step_by(step_size) {
-            let activity_chunk = db
-                .get_activities(step_size as u32, index + step_size as u32)
-                .await?;
+            let activity_chunk = db.get_activities(step_size as u32, index).await?;
             let activity_chunk_len = activity_chunk.len();
             for activity in activity_chunk {
                 if self.spam_prevention(&activity) {
-                    self.activity_queue.push_front(activity)
+                    self.activity_queue.push_back(activity)
                 }
                 if self.activity_queue.len() >= self.queue_size.into() {
                     break 'outer;
@@ -217,49 +232,44 @@ impl ActivityTracker {
 
         let token = self.credentials_grant_client.get_access_token()?;
 
-        let mut beatmaps = self
+        let beatmaps = self
             .beatmap_requester
             .clone()
             .get_multiple_osu(&beatmaps_to_request, &token)
             .await?;
-
         let users_to_request: Vec<u32> = beatmaps.values().map(|beatmap| beatmap.user_id).collect();
-        let mut users = self
+        let users = self
             .user_requester
             .clone()
             .get_multiple_osu(&users_to_request, &token)
             .await?;
-
         self.activity_queue
             .iter_mut()
             .filter_map(|activity| {
                 let id = activity.get_beatmap_id()?;
                 // TODO: proper error handling plx
-                let beatmap = beatmaps.remove(&id)?;
-                let user = users.remove(&beatmap.user_id)?;
+                let beatmap = beatmaps.get(&id)?;
+                let user = users.get(&beatmap.user_id)?;
                 Some((activity, beatmap, user))
             })
             .for_each(|(activity, beatmap, user)| {
                 let beatmap_small = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
-                    beatmap,
-                    user.username,
-                    user.avatar_url,
+                    beatmap.clone(),
+                    user.username.clone(),
+                    user.avatar_url.clone(),
                 );
                 activity.swap_beatmap_enum(BeatmapEnum::All(beatmap_small));
             });
         Ok(())
     }
-    pub fn test(&self) {
-        dbg!(&self.activity_queue);
-    }
 }
 
-async fn ws_handler(
+pub async fn ws_handler(
     ws: WebSocketUpgrade,
-    Extension(activity_tracker): Extension<ActivityTracker>,
+    State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Result<Response, AppError> {
-    let (initial_message, broadcast_receiver) = activity_tracker.new_connection()?;
+    let (initial_message, broadcast_receiver) = state.activity_tracker.new_connection()?;
     let upgrade_response = ws
         .on_upgrade(move |socket| handle_socket(socket, addr, initial_message, broadcast_receiver));
     Ok(upgrade_response)
@@ -270,20 +280,78 @@ async fn ws_handler(
 // library was sending ping messages in text format instead of its dedicated message type
 // maybe that's how it's supposed to be? I don't think so but whatever
 async fn handle_socket(
-    mut websocket: WebSocket,
+    websocket: WebSocket,
     address: SocketAddr,
     initial_data: String,
     mut broadcast_receiver: Receiver<String>,
 ) {
-    if let Err(error) = websocket.send(Message::Text(initial_data)).await {
-        tracing::error!("Error while sending message to {}: {}", address, error);
-    }
+    let (ws_sender, mut ws_receiver) = websocket.split();
+    let ws_sender = Arc::new(Mutex::new(ws_sender));
 
-    while let Ok(new_activity_string) = broadcast_receiver.recv().await {
-        if let Err(error) = websocket.send(Message::Text(new_activity_string)).await {
-            tracing::error!("Error while sending message to {}: {}", address, error);
-        } else {
-            break;
+    {
+        let mut locked_ws_sender = ws_sender.lock().await;
+        if let Err(error) = locked_ws_sender.send(Message::Text(initial_data)).await {
+            tracing::error!(
+                "Error while sending initial message to {}: {}",
+                address,
+                error
+            );
+            return;
         }
     }
+    let ws_sender_clone = Arc::clone(&ws_sender);
+
+    let websocket_task = tokio::spawn(async move {
+        loop {
+            match ws_receiver.next().await {
+                Some(Ok(_)) => {
+                    // Handle incoming WebSocket messages if needed
+                }
+                Some(Err(error)) => {
+                    tracing::error!(
+                        "Error while reading from websocket for {}: {}",
+                        address,
+                        error
+                    );
+                    break;
+                }
+                None => {
+                    tracing::info!("WebSocket connection closed for {}", address);
+                    break;
+                }
+            }
+        }
+    });
+
+    let broadcast_task = tokio::spawn(async move {
+        loop {
+            match broadcast_receiver.recv().await {
+                Ok(new_activity_string) => {
+                    let mut locked_ws_sender = ws_sender_clone.lock().await;
+                    if let Err(error) = locked_ws_sender
+                        .send(Message::Text(new_activity_string))
+                        .await
+                    {
+                        tracing::error!("Error while sending message to {}: {}", address, error);
+                        break;
+                    }
+                }
+                Err(error) => {
+                    tracing::error!("Error receiving broadcast message: {}", error);
+                    break;
+                }
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = websocket_task => {},
+        _ = broadcast_task => {},
+    }
+}
+
+#[debug_handler]
+pub async fn get_latest_activities(State(state): State<Arc<AppState>>) -> Json<Vec<Activity>> {
+    let activities = state.activity_tracker.clone().get_current_queue();
+    Json(activities)
 }

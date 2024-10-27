@@ -32,8 +32,6 @@ pub struct LeaderboardResponse {
     leaderboard: Vec<Leaderboard>,
 }
 
-/// This leaderboard query is not as performant as I hoped it would be with the new db.
-/// Users might have to wait for long times. So we need to send leaderboard data in big chunks.
 #[cached(
     ty = "CustomCache<String, Json<LeaderboardResponse>>",
     create = "{CustomCache::new(600)}",

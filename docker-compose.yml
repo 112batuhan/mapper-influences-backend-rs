@@ -1,12 +1,19 @@
-version: '3.8'
+version: '3'
 
 services:
   surrealdb:
-    image: surrealdb/surrealdb:latest-dev
-    container_name: surrealdb
-    ports:
-      - "8100:8000"  # Expose SurrealDB on port 8000
     env_file:
-      - .env           # Load environment variables from .env file
-    command: start --log debug --user ${SURREAL_USER} --pass ${SURREAL_PASS} file://database.db
-   
+      - .env
+    entrypoint: 
+      - /surreal 
+      - start 
+      - --user
+      - $SURREAL_USER
+      - --pass
+      - $SURREAL_PASS
+      - --log
+      - debug 
+    image: surrealdb/surrealdb:latest
+    ports:
+      - 8100:8000
+

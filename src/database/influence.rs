@@ -10,7 +10,7 @@ use super::{numerical_thing, DatabaseClient};
 
 #[derive(Serialize, Deserialize, JsonSchema, PartialEq, Clone, Debug)]
 pub struct Influence {
-    pub id: u32,
+    pub user_id: u32,
     pub country_code: String,
     pub country_name: String,
     pub avatar_url: String,
@@ -116,7 +116,7 @@ impl DatabaseClient {
             .query(
                 "
                 SELECT 
-                    meta::id(out) as id,
+                    meta::id(out) as user_id,
                     out.country_code as country_code,
                     out.country_name as country_name,
                     out.avatar_url as avatar_url,
@@ -146,7 +146,7 @@ impl DatabaseClient {
             .query(
                 "
                 SELECT 
-                    meta::id(in) as id,
+                    meta::id(in) as user_id,
                     in.country_code as country_code,
                     in.country_name as country_name,
                     in.avatar_url as avatar_url,

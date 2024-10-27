@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use aide::{axum::ApiRouter, openapi::OpenApi};
 use axum::{
@@ -6,32 +6,30 @@ use axum::{
     routing::get,
     Extension, Json,
 };
-use mapper_influences_backend_rs::{routes, AppState};
+use mapper_influences_backend_rs::{
+    osu_api::{CredentialsGrantClient, RequestClient},
+    routes, AppState,
+};
 use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
 use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
 
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                format!(
-                    "{}=debug,tower_http=debug,axum::rejection=trace",
-                    env!("CARGO_CRATE_NAME")
-                )
-                .into()
-            }),
-        )
-        .with(tracing_subscriber::fmt::layer())
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    let state = Arc::new(AppState::new().await);
+    // initializing client wrappers and state
+    let request = Arc::new(RequestClient::new(10));
+    let client_credential_client = CredentialsGrantClient::new(request.clone())
+        .await
+        .expect("Failed to initialize credentials grant client");
+    let state = Arc::new(AppState::new(request, client_credential_client).await);
 
     aide::gen::extract_schemas(true);
     let mut api = OpenApi::default();
@@ -49,10 +47,11 @@ async fn main() {
         )
         .nest("/", routes(state.clone()))
         .finish_api(&mut api)
-        //.layer(cors)
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(Extension(Arc::new(api)))
-        .with_state(state);
+        .with_state(state)
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     info!("listening on {}", listener.local_addr().unwrap());

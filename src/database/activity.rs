@@ -55,15 +55,13 @@ impl DatabaseClient {
     }
 
     pub async fn get_activities(&self, limit: u32, start: u32) -> Result<Vec<Activity>, AppError> {
-        let string = format!(
-            "{} {}",
-            Self::activity_query_string(),
-            "LIMIT $limit START $start"
-        );
-        println!("{string}");
         let activities = self
             .db
-            .query(string)
+            .query(format!(
+                "{} {}",
+                Self::activity_query_string(),
+                "ORDER BY created_at DESC LIMIT $limit START $start"
+            ))
             .bind(("limit", limit))
             .bind(("start", start))
             .await?

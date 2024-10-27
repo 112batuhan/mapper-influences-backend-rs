@@ -3,9 +3,13 @@ use std::sync::Arc;
 use aide::axum::routing::{delete_with, get_with, patch_with, post_with};
 use aide::axum::ApiRouter;
 use axum::middleware;
+use axum::routing::any;
 use database::DatabaseClient;
+use handlers::activity::ActivityTracker;
 use jwt::JwtUtil;
-use osu_api::{CachedRequester, OsuMultipleBeatmap, OsuMultipleUser, RequestClient};
+use osu_api::{
+    CachedRequester, CredentialsGrantClient, OsuMultipleBeatmap, OsuMultipleUser, RequestClient,
+};
 
 pub mod custom_cache;
 pub mod database;
@@ -20,27 +24,48 @@ pub struct AppState {
     pub jwt: JwtUtil,
     pub user_requester: Arc<CachedRequester<OsuMultipleUser>>,
     pub beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
+    pub activity_tracker: Arc<ActivityTracker>,
 }
 
 impl AppState {
-    pub async fn new() -> AppState {
-        let request = Arc::new(RequestClient::new(10));
+    pub async fn new(
+        request: Arc<RequestClient>,
+        credentials_grant_client: Arc<CredentialsGrantClient>,
+    ) -> AppState {
+        let user_requester = Arc::new(CachedRequester::new(
+            request.clone(),
+            "https://osu.ppy.sh/api/v2/users",
+            24600,
+        ));
+        let beatmap_requester = Arc::new(CachedRequester::new(
+            request.clone(),
+            "https://osu.ppy.sh/api/v2/beatmaps",
+            86400,
+        ));
+
+        let db = DatabaseClient::new()
+            .await
+            .expect("failed to initialize db connection");
+
+        let activity_tracker = ActivityTracker::new(
+            &db,
+            50,
+            user_requester.clone(),
+            beatmap_requester.clone(),
+            credentials_grant_client,
+        )
+        .await
+        // TODO: better handle errors
+        .expect("failed to initialize activity tracker");
+        let activity_tracker = Arc::new(activity_tracker);
+
         AppState {
-            db: DatabaseClient::new()
-                .await
-                .expect("failed to initialize db connection"),
-            request: request.clone(),
+            db,
+            request,
             jwt: JwtUtil::new_jwt(),
-            user_requester: Arc::new(CachedRequester::new(
-                request.clone(),
-                "https://osu.ppy.sh/api/v2/users",
-                24600,
-            )),
-            beatmap_requester: Arc::new(CachedRequester::new(
-                request,
-                "https://osu.ppy.sh/api/v2/beatmaps",
-                86400,
-            )),
+            user_requester,
+            beatmap_requester,
+            activity_tracker,
         }
     }
 }
@@ -129,6 +154,13 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             state,
             handlers::auth::check_jwt_token,
         ))
+        .api_route(
+            "/activity",
+            get_with(handlers::activity::get_latest_activities, |op| {
+                op.tag("Activity")
+            }),
+        )
+        .route("/ws", any(handlers::activity::ws_handler))
         .api_route(
             "/oauth/osu-redirect",
             get_with(handlers::auth::osu_oauth2_redirect, |op| op.tag("Auth")),

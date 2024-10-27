@@ -4,6 +4,7 @@ use axum::{
     extract::{Path, State},
     Extension, Json,
 };
+use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +38,7 @@ pub async fn user_data_handle(
             BeatmapEnum::Id(id) => Some(id),
             BeatmapEnum::All(_) => None,
         })
+        .unique()
         .copied()
         .collect();
     let beatmaps = state
