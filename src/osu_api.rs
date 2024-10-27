@@ -207,7 +207,7 @@ impl OsuBeatmapSmall {
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum BeatmapEnum {
-    Data(OsuBeatmapSmall),
+    All(OsuBeatmapSmall),
     Id(u32),
 }
 

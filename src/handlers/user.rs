@@ -35,7 +35,7 @@ pub async fn user_data_handle(
         .iter()
         .filter_map(|map| match map {
             BeatmapEnum::Id(id) => Some(id),
-            BeatmapEnum::Data(_) => None,
+            BeatmapEnum::All(_) => None,
         })
         .copied()
         .collect();
@@ -80,7 +80,7 @@ pub async fn user_data_handle(
                 user.username.clone(),
                 user.avatar_url.clone(),
             );
-            Some(BeatmapEnum::Data(beatmap_small))
+            Some(BeatmapEnum::All(beatmap_small))
         })
         .collect();
 

@@ -46,7 +46,7 @@ impl DatabaseClient {
                         count() AS leaderboard_count, 
                         out 
                     FROM influenced_by 
-                    WHERE $ranked_only = false OR <-user.ranked_mapper.at(0) = true 
+                    WHERE $ranked_only = false OR in.ranked_mapper = true 
                     GROUP BY out 
                     ORDER BY leaderboard_count DESC
                     )

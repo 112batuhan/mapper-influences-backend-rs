@@ -133,7 +133,7 @@ pub async fn get_user_influences(
         .flat_map(|influence| &influence.beatmaps)
         .filter_map(|maps| match maps {
             BeatmapEnum::Id(id) => Some(id),
-            BeatmapEnum::Data(_) => None,
+            BeatmapEnum::All(_) => None,
         })
         .copied()
         .collect();
@@ -176,7 +176,7 @@ pub async fn get_user_influences(
                 .into_iter()
                 .filter_map(|maps| match maps {
                     BeatmapEnum::Id(id) => Some(id),
-                    BeatmapEnum::Data(_) => None,
+                    BeatmapEnum::All(_) => None,
                 })
                 // TODO: Maybe there is a way to refactor this
                 // we have the same thing going on in user handler
@@ -190,7 +190,7 @@ pub async fn get_user_influences(
                         user.username.clone(),
                         user.avatar_url.clone(),
                     );
-                    Some(BeatmapEnum::Data(beatmap_small))
+                    Some(BeatmapEnum::All(beatmap_small))
                 })
                 .collect();
             influence.beatmaps = beatmaps;

@@ -119,7 +119,7 @@ impl Activity {
         }?;
         match beatmap_enum {
             BeatmapEnum::Id(id) => Some(*id),
-            BeatmapEnum::Data(_) => None,
+            BeatmapEnum::All(_) => None,
         }
     }
 
@@ -245,7 +245,7 @@ impl ActivityTracker {
                     user.username,
                     user.avatar_url,
                 );
-                activity.swap_beatmap_enum(BeatmapEnum::Data(beatmap_small));
+                activity.swap_beatmap_enum(BeatmapEnum::All(beatmap_small));
             });
         Ok(())
     }

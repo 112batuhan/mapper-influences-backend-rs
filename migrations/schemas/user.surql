@@ -19,3 +19,5 @@ DEFINE FIELD OVERWRITE guest_beatmapset_count ON user TYPE int;
 DEFINE FIELD OVERWRITE loved_beatmapset_count ON user TYPE int;
 DEFINE FIELD OVERWRITE graveyard_beatmapset_count ON user TYPE int;
 DEFINE FIELD OVERWRITE pending_beatmapset_count ON user TYPE int;
+
+DEFINE INDEX OVERWRITE country_name_index ON TABLE user COLUMNS country_name UNIQUE;
