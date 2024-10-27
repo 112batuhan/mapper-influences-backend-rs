@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws, Wss},
     opt::auth::Root,
@@ -47,11 +46,6 @@ impl DatabaseClient {
     pub fn get_inner_ref(&self) -> &Surreal<Client> {
         &self.db
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct CustomId {
-    id: Id,
 }
 
 pub fn numerical_thing(table: &str, number: u32) -> Thing {
