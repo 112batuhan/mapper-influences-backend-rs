@@ -215,19 +215,19 @@ impl ActivityTracker {
             .filter_map(|activity| activity.get_beatmap_id())
             .collect();
 
-        let token = self.credentials_grant_client.get_access_token();
+        let token = self.credentials_grant_client.get_access_token()?;
 
         let mut beatmaps = self
             .beatmap_requester
             .clone()
-            .get_multiple_osu(&beatmaps_to_request, token)
+            .get_multiple_osu(&beatmaps_to_request, &token)
             .await?;
 
         let users_to_request: Vec<u32> = beatmaps.values().map(|beatmap| beatmap.user_id).collect();
         let mut users = self
             .user_requester
             .clone()
-            .get_multiple_osu(&users_to_request, token)
+            .get_multiple_osu(&users_to_request, &token)
             .await?;
 
         // really shotty, there has to be a better way but i'm sleepy af

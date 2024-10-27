@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, LazyLock, Mutex},
-    time::{Duration, Instant},
+    sync::{Arc, LazyLock, Mutex, RwLock},
+    time::Duration,
 };
 
 use cached::proc_macro::cached;
@@ -10,7 +10,8 @@ use reqwest::header::{HeaderMap, AUTHORIZATION};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::Semaphore;
+use tokio::{sync::Semaphore, time::sleep};
+use tracing::error;
 
 use crate::{custom_cache::CustomCache, error::AppError};
 
@@ -429,58 +430,67 @@ impl RequestClient {
     }
 }
 
-/// TODO: make a trait, implement default new check_token expiration thing, then implement for
-/// [`CredentialsGrantClient`] and [`CachedRequester`]
+/// A wrapper to [`RequestClient`] to store and update credentials grant client auth method token
 ///
-/// A wrapper around [`RequestClient`] to make calls using Client Credentials Grant auth method
-///
-/// TODO: Later thought, don't make it a wrapper and make it standalone to let it provide tokens only
-/// We only need to use this for activities and daily updates.
-/// Traits and implementations are overkill, just store an arc reference and keep reusing.
-/// We gotta still store a client, just pass the client we use everywhere else, don't create a new one.
-/// This is going to make things harder for buco, but I will help ;)
-///
-/// IDK MAN JUST SLEEP AND THEN THINK
-/// THERE ARE MILLION WAYS TO DO THIS ANYWAY
-/// YOU WILL FIND A WAY
+/// Will be used to request activity data and daily update data
 pub struct CredentialsGrantClient {
-    client: RequestClient,
-    access_token: String,
-    expires_in: Duration,
-    auth_time: Instant,
+    client: Arc<RequestClient>,
+    token: RwLock<String>,
 }
 
 impl CredentialsGrantClient {
-    pub async fn new() -> Result<CredentialsGrantClient, AppError> {
-        // random big number for sephemore permits. We won't ever reach that number using this
-        let client = RequestClient::new(500);
-        let token = client.get_client_credentials_token().await?;
-
-        Ok(CredentialsGrantClient {
+    pub async fn new(client: Arc<RequestClient>) -> Result<Arc<CredentialsGrantClient>, AppError> {
+        let client = Arc::new(CredentialsGrantClient {
             client,
-            access_token: token.access_token,
-            expires_in: Duration::from_secs(token.expires_in.into()),
-            auth_time: Instant::now(),
-        })
+            token: RwLock::new(String::new()),
+        });
+        client.clone().start_loop();
+        Ok(client)
     }
 
-    async fn check_token_expiration_and_update(&mut self) -> Result<(), AppError> {
-        if self.auth_time.elapsed() > self.expires_in {
-            let token = self.client.get_client_credentials_token().await?;
-            self.access_token = token.access_token;
-            self.auth_time = Instant::now();
-            self.expires_in = Duration::from_secs(token.expires_in.into())
-        }
+    fn update_token(&self, new_token: String) -> Result<(), AppError> {
+        let mut token = self.token.write().map_err(|_| AppError::RwLock)?;
+        *token = new_token;
         Ok(())
     }
 
-    pub fn get_access_token(&self) -> &str {
-        &self.access_token
+    fn start_loop(self: Arc<Self>) {
+        let cloned_self = self.clone();
+        let buffer_time = 120;
+        let mut retry_attempt = 0;
+        let mut retry_cooldown = 5;
+        tokio::spawn(async move {
+            loop {
+                // we can't fail this task, best we can do is to retry. If this doesn't work,
+                // then there is a good chance that the rest of the requests won't work either
+                let Ok(token) = cloned_self.client.get_client_credentials_token().await else {
+                    error!(
+                        "Failed to get client credentials token. 
+                        Attempting to retry. Attempt {}, Cooldown {} secs",
+                        retry_attempt, retry_cooldown
+                    );
+                    sleep(Duration::from_secs(retry_cooldown)).await;
+                    if retry_attempt < 10 {
+                        retry_cooldown += 10;
+                    }
+                    retry_attempt += 1;
+                    continue;
+                };
+                let _ = cloned_self.update_token(token.access_token);
+                sleep(Duration::from_secs(token.expires_in as u64 - buffer_time)).await;
+            }
+        });
     }
 
-    pub async fn get_user_osu(&mut self, user_id: u32) -> Result<UserOsu, AppError> {
-        self.check_token_expiration_and_update().await?;
-        self.client.get_user_osu(&self.access_token, user_id).await
+    pub fn get_access_token(&self) -> Result<String, AppError> {
+        let token = self.token.read().map_err(|_| AppError::RwLock)?;
+        Ok(token.clone())
+    }
+
+    /// Ease of use to get user data since we already contain the client inside
+    pub async fn get_user_osu(self, user_id: u32) -> Result<UserOsu, AppError> {
+        let token = self.get_access_token()?;
+        self.client.get_user_osu(&token, user_id).await
     }
 }
 

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc, u32};
+use std::{collections::HashSet, sync::Arc};
 
 use axum::{
     extract::{Path, State},

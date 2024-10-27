@@ -20,6 +20,9 @@ pub enum AppError {
     #[error("Mutex error")]
     Mutex,
 
+    #[error("RwLock error")]
+    RwLock,
+
     //TODO: make this better?
     #[error("Value Missing")]
     MissingLayerJson,
@@ -61,6 +64,7 @@ impl IntoResponse for AppError {
             | AppError::Reqwest(_)
             | AppError::Jwt(_)
             | AppError::Mutex
+            | AppError::RwLock
             | AppError::SerdeJson(_)
             | AppError::TaskJoin(_)
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
