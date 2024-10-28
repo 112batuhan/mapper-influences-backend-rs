@@ -11,6 +11,7 @@ use osu_api::{
     CachedRequester, CredentialsGrantClient, OsuMultipleBeatmap, OsuMultipleUser, RequestClient,
 };
 
+pub mod auto_update;
 pub mod custom_cache;
 pub mod database;
 pub mod error;
