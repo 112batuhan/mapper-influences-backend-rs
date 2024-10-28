@@ -6,7 +6,6 @@ use std::{
 };
 
 use axum::{
-    debug_handler,
     extract::{
         ws::{Message, WebSocket},
         ConnectInfo, State, WebSocketUpgrade,
@@ -30,8 +29,8 @@ use crate::{
     database::{user::UserSmall, DatabaseClient},
     error::AppError,
     osu_api::{
-        BeatmapEnum, CachedRequester, CredentialsGrantClient, OsuBeatmapSmall, OsuMultipleBeatmap,
-        OsuMultipleUser,
+        BeatmapEnum, CachedRequester, CredentialsGrantClient, GetID, OsuBeatmapSmall,
+        OsuMultipleBeatmap, OsuMultipleUser,
     },
     AppState,
 };
@@ -50,15 +49,37 @@ pub struct Activity {
 #[serde(tag = "event_type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ActivityType {
     Login,
-    AddInfluence { influence: UserSmall },
-    RemoveInfluence { influence: UserSmall },
-    AddInfluenceBeatmap { beatmap: BeatmapEnum },
-    RemoveInfluenceBeatmap { beatmap: BeatmapEnum },
-    AddUserBeatmap { beatmap: BeatmapEnum },
-    RemoveUserBeatmap { beatmap: BeatmapEnum },
-    EditInfluenceDesc { description: String },
-    EditInfluenceType { influence_type: u8 },
-    EditBio { bio: String },
+    AddInfluence {
+        influence: UserSmall,
+    },
+    RemoveInfluence {
+        influence: UserSmall,
+    },
+    AddUserBeatmap {
+        beatmap: BeatmapEnum,
+    },
+    RemoveUserBeatmap {
+        beatmap: BeatmapEnum,
+    },
+    AddInfluenceBeatmap {
+        influence: UserSmall,
+        beatmap: BeatmapEnum,
+    },
+    RemoveInfluenceBeatmap {
+        influence: UserSmall,
+        beatmap: BeatmapEnum,
+    },
+    EditInfluenceDesc {
+        influence: UserSmall,
+        description: String,
+    },
+    EditInfluenceType {
+        influence: UserSmall,
+        influence_type: u8,
+    },
+    EditBio {
+        bio: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -179,13 +200,127 @@ impl ActivityTracker {
         ))
     }
 
-    pub fn spam_prevention(&self, _new_activity: &Activity) -> Result<bool, AppError> {
+    pub fn spam_prevention(&self, new_activity: &Activity) -> Result<bool, AppError> {
         let locked_queue = self.lock_activity_queue()?;
+
+        match &new_activity.activity_type {
+            ActivityType::Login => return Ok(false),
+            ActivityType::EditBio { .. } => {
+                return Ok(!locked_queue
+                    .iter()
+                    .any(|old_activity| new_activity.user.id == old_activity.user.id))
+            }
+            ActivityType::AddUserBeatmap {
+                beatmap: new_beatmap,
+            } => {
+                let max_false = 5;
+                let mut current_false = 0;
+                let matched = locked_queue.iter().any(|old_activity| {
+                    new_activity.user.id == old_activity.user.id
+                        && match &old_activity.activity_type {
+                            ActivityType::AddUserBeatmap {
+                                beatmap: old_beatmap,
+                            } => {
+                                if new_beatmap.get_id() != old_beatmap.get_id()
+                                    && current_false < max_false
+                                {
+                                    current_false += 1;
+                                    false
+                                } else {
+                                    true
+                                }
+                            }
+                            _ => false,
+                        }
+                });
+                return Ok(!matched);
+            }
+
+            ActivityType::AddInfluence {
+                influence: new_influence,
+            } => {
+                let matched = locked_queue.iter().any(|old_activity| {
+                    new_activity.user.id == old_activity.user.id
+                        && match &old_activity.activity_type {
+                            ActivityType::AddInfluence {
+                                influence: old_influence,
+                            }
+                            | ActivityType::EditInfluenceDesc {
+                                influence: old_influence,
+                                ..
+                            }
+                            | ActivityType::EditInfluenceType {
+                                influence: old_influence,
+                                ..
+                            } => new_influence.id == old_influence.id,
+                            _ => false,
+                        }
+                });
+                return Ok(!matched);
+            }
+            ActivityType::EditInfluenceDesc {
+                influence: new_influence,
+                ..
+            }
+            | ActivityType::EditInfluenceType {
+                influence: new_influence,
+                ..
+            } => {
+                let matched = locked_queue.iter().any(|old_activity| {
+                    new_activity.user.id == old_activity.user.id
+                        && match &old_activity.activity_type {
+                            ActivityType::AddInfluence {
+                                influence: old_influence,
+                            }
+                            | ActivityType::EditInfluenceDesc {
+                                influence: old_influence,
+                                ..
+                            }
+                            | ActivityType::EditInfluenceType {
+                                influence: old_influence,
+                                ..
+                            } => new_influence.id == old_influence.id,
+
+                            _ => false,
+                        }
+                });
+                return Ok(!matched);
+            }
+            ActivityType::AddInfluenceBeatmap {
+                influence: new_influence,
+                beatmap: new_beatmap,
+            } => {
+                let max_false = 2;
+                let mut current_false = 0;
+                let matched = locked_queue.iter().any(|old_activity| {
+                    new_activity.user.id == old_activity.user.id
+                        && match &old_activity.activity_type {
+                            ActivityType::AddInfluenceBeatmap {
+                                influence: old_influence,
+                                beatmap: old_beatmap,
+                            } => {
+                                if new_influence.id != old_influence.id
+                                    || new_beatmap.get_id() != old_beatmap.get_id()
+                                        && current_false < max_false
+                                {
+                                    current_false += 1;
+                                    false
+                                } else {
+                                    true
+                                }
+                            }
+                            _ => false,
+                        }
+                });
+                return Ok(!matched);
+            }
+            _ => {}
+        };
         Ok(true)
     }
 
     pub async fn set_initial_activities(&self, db: &DatabaseClient) -> Result<(), AppError> {
-        let step_size: usize = 100;
+        let step_size: usize = self.queue_size as usize * 2;
         'outer: for index in (0..).step_by(step_size) {
             let activity_chunk = db.get_activities(step_size as u32, index).await?;
             let activity_chunk_len = activity_chunk.len();
@@ -456,7 +591,6 @@ async fn handle_socket(
     }
 }
 
-#[debug_handler]
 pub async fn get_latest_activities(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<Activity>>, AppError> {

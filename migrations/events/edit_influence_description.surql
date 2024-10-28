@@ -3,5 +3,9 @@ DEFINE EVENT OVERWRITE edit_influence_description ON TABLE influenced_by WHEN $e
     SET user = $after.in, 
         created_at = time::now(), 
         event_type = "EDIT_INFLUENCE_DESC", 
-        description = $after.description
+        description = $after.description,
+        influence = {
+            id: $after.id,
+            out: $after.out,
+        }
 );

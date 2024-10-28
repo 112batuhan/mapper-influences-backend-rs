@@ -3,5 +3,9 @@ DEFINE EVENT OVERWRITE remove_influence_beatmap ON TABLE influenced_by WHEN $eve
     SET user = $after.in, 
         created_at = time::now(),
         event_type = "REMOVE_INFLUENCE_BEATMAP", 
-        beatmap = array::complement($before.beatmaps, $after.beatmaps).at(0)
+        beatmap = array::complement($before.beatmaps, $after.beatmaps).at(0),
+        influence = {
+            id: $after.id,
+            out: $after.out,
+        }
 );

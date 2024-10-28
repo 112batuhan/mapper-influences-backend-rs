@@ -4,7 +4,7 @@ DEFINE EVENT OVERWRITE add_influence ON TABLE influenced_by WHEN $event == "CREA
         created_at = time::now(),
         event_type = "ADD_INFLUENCE", 
         influence = {
-    		id: $after.id,
-    		out: $after.out,       
-            }
+            id: $after.id,
+            out: $after.out,
+        }
 );

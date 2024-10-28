@@ -209,6 +209,15 @@ pub enum BeatmapEnum {
     Id(u32),
 }
 
+impl GetID for BeatmapEnum {
+    fn get_id(&self) -> u32 {
+        match self {
+            BeatmapEnum::All(beatmap) => beatmap.id,
+            BeatmapEnum::Id(id) => *id,
+        }
+    }
+}
+
 /// Also has `refresh_token` but we don't need it
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OsuAuthToken {

@@ -3,5 +3,9 @@ DEFINE EVENT OVERWRITE add_influence_beatmap ON TABLE influenced_by WHEN $event 
     SET user = $after.in,
         created_at = time::now(),
         event_type = "ADD_INFLUENCE_BEATMAP", 
-        beatmap = array::complement($after.beatmaps, $before.beatmaps).at(0)
+        beatmap = array::complement($after.beatmaps, $before.beatmaps).at(0),
+        influence = {
+            id: $after.id,
+            out: $after.out,
+        }
 );
