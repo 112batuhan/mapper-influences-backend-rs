@@ -204,12 +204,9 @@ impl ActivityTracker {
         let locked_queue = self.lock_activity_queue()?;
 
         match &new_activity.activity_type {
-            ActivityType::Login => return Ok(false),
-            ActivityType::EditBio { .. } => {
-                return Ok(!locked_queue
-                    .iter()
-                    .any(|old_activity| new_activity.user.id == old_activity.user.id))
-            }
+            ActivityType::EditBio { .. } => Ok(!locked_queue
+                .iter()
+                .any(|old_activity| new_activity.user.id == old_activity.user.id)),
             ActivityType::AddUserBeatmap {
                 beatmap: new_beatmap,
             } => {
@@ -233,7 +230,7 @@ impl ActivityTracker {
                             _ => false,
                         }
                 });
-                return Ok(!matched);
+                Ok(!matched)
             }
 
             ActivityType::AddInfluence {
@@ -256,7 +253,7 @@ impl ActivityTracker {
                             _ => false,
                         }
                 });
-                return Ok(!matched);
+                Ok(!matched)
             }
             ActivityType::EditInfluenceDesc {
                 influence: new_influence,
@@ -284,7 +281,7 @@ impl ActivityTracker {
                             _ => false,
                         }
                 });
-                return Ok(!matched);
+                Ok(!matched)
             }
             ActivityType::AddInfluenceBeatmap {
                 influence: new_influence,
@@ -312,11 +309,10 @@ impl ActivityTracker {
                             _ => false,
                         }
                 });
-                return Ok(!matched);
+                Ok(!matched)
             }
-            _ => {}
-        };
-        Ok(true)
+            _ => Ok(false),
+        }
     }
 
     pub async fn set_initial_activities(&self, db: &DatabaseClient) -> Result<(), AppError> {
