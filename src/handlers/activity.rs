@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, net::SocketAddr, sync::Arc};
+use std::{
+    collections::VecDeque,
+    net::SocketAddr,
+    sync::{Arc, Mutex as StdMutex, MutexGuard},
+    time::Duration,
+};
 
 use axum::{
     debug_handler,
@@ -12,10 +17,13 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Datetime;
-use tokio::sync::{
-    broadcast::{self, Receiver, Sender},
-    Mutex,
+use surrealdb::{sql::Datetime, Action};
+use tokio::{
+    sync::{
+        broadcast::{self, Receiver, Sender},
+        Mutex,
+    },
+    time::sleep,
 };
 
 use crate::{
@@ -29,65 +37,28 @@ use crate::{
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub struct ActivityCommonFields {
+pub struct Activity {
     id: String,
     user: UserSmall,
     #[schemars(with = "chrono::DateTime<chrono::Utc>")]
     created_at: Datetime,
+    #[serde(flatten)]
+    activity_type: ActivityType,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 #[serde(tag = "event_type", rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum Activity {
-    Login {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-    },
-    AddInfluence {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        influence: UserSmall,
-    },
-    RemoveInfluence {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        influence: UserSmall,
-    },
-    AddInfluenceBeatmap {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        beatmap: BeatmapEnum,
-    },
-    RemoveInfluenceBeatmap {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        beatmap: BeatmapEnum,
-    },
-    AddUserBeatmap {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        beatmap: BeatmapEnum,
-    },
-    RemoveUserBeatmap {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        beatmap: BeatmapEnum,
-    },
-    EditInfluenceDesc {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        description: String,
-    },
-    EditInfluenceType {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        influence_type: u8,
-    },
-    EditBio {
-        #[serde(flatten)]
-        common: ActivityCommonFields,
-        bio: String,
-    },
+pub enum ActivityType {
+    Login,
+    AddInfluence { influence: UserSmall },
+    RemoveInfluence { influence: UserSmall },
+    AddInfluenceBeatmap { beatmap: BeatmapEnum },
+    RemoveInfluenceBeatmap { beatmap: BeatmapEnum },
+    AddUserBeatmap { beatmap: BeatmapEnum },
+    RemoveUserBeatmap { beatmap: BeatmapEnum },
+    EditInfluenceDesc { description: String },
+    EditInfluenceType { influence_type: u8 },
+    EditBio { bio: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -101,28 +72,28 @@ pub enum ActivityGroup {
     Other,
 }
 
-impl Activity {
+impl ActivityType {
     pub fn group(&self) -> ActivityGroup {
         match self {
-            Activity::Login { .. } => ActivityGroup::Other,
-            Activity::EditBio { .. } => ActivityGroup::Bio,
-            Activity::AddUserBeatmap { .. } => ActivityGroup::UserBeatmap,
-            Activity::RemoveUserBeatmap { .. } => ActivityGroup::UserBeatmap,
-            Activity::AddInfluence { .. } => ActivityGroup::InfluenceAdd,
-            Activity::RemoveInfluence { .. } => ActivityGroup::InfluenceRemove,
-            Activity::EditInfluenceDesc { .. } => ActivityGroup::InfluenceEdit,
-            Activity::EditInfluenceType { .. } => ActivityGroup::InfluenceEdit,
-            Activity::AddInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
-            Activity::RemoveInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
+            ActivityType::Login { .. } => ActivityGroup::Other,
+            ActivityType::EditBio { .. } => ActivityGroup::Bio,
+            ActivityType::AddUserBeatmap { .. } => ActivityGroup::UserBeatmap,
+            ActivityType::RemoveUserBeatmap { .. } => ActivityGroup::UserBeatmap,
+            ActivityType::AddInfluence { .. } => ActivityGroup::InfluenceAdd,
+            ActivityType::RemoveInfluence { .. } => ActivityGroup::InfluenceRemove,
+            ActivityType::EditInfluenceDesc { .. } => ActivityGroup::InfluenceEdit,
+            ActivityType::EditInfluenceType { .. } => ActivityGroup::InfluenceEdit,
+            ActivityType::AddInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
+            ActivityType::RemoveInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
         }
     }
 
     pub fn get_beatmap_id(&self) -> Option<u32> {
         let beatmap_enum = match self {
-            Activity::AddInfluenceBeatmap { beatmap, .. }
-            | Activity::RemoveInfluenceBeatmap { beatmap, .. }
-            | Activity::AddUserBeatmap { beatmap, .. }
-            | Activity::RemoveUserBeatmap { beatmap, .. } => Some(beatmap),
+            ActivityType::AddInfluenceBeatmap { beatmap, .. }
+            | ActivityType::RemoveInfluenceBeatmap { beatmap, .. }
+            | ActivityType::AddUserBeatmap { beatmap, .. }
+            | ActivityType::RemoveUserBeatmap { beatmap, .. } => Some(beatmap),
             _ => None,
         }?;
         match beatmap_enum {
@@ -133,16 +104,16 @@ impl Activity {
 
     pub fn swap_beatmap_enum(&mut self, beatmap_with_data: BeatmapEnum) {
         match self {
-            Activity::AddInfluenceBeatmap {
+            ActivityType::AddInfluenceBeatmap {
                 ref mut beatmap, ..
             }
-            | Activity::RemoveInfluenceBeatmap {
+            | ActivityType::RemoveInfluenceBeatmap {
                 ref mut beatmap, ..
             }
-            | Activity::AddUserBeatmap {
+            | ActivityType::AddUserBeatmap {
                 ref mut beatmap, ..
             }
-            | Activity::RemoveUserBeatmap {
+            | ActivityType::RemoveUserBeatmap {
                 ref mut beatmap, ..
             } => *beatmap = beatmap_with_data,
             _ => {}
@@ -151,7 +122,7 @@ impl Activity {
 }
 
 pub struct ActivityTracker {
-    activity_queue: VecDeque<Activity>,
+    activity_queue: StdMutex<VecDeque<Activity>>,
     queue_size: u8,
     activity_broadcaster: Sender<String>,
     user_requester: Arc<CachedRequester<OsuMultipleUser>>,
@@ -161,56 +132,70 @@ pub struct ActivityTracker {
 
 impl ActivityTracker {
     pub async fn new(
-        db: &DatabaseClient,
+        db: Arc<DatabaseClient>,
         queue_size: u8,
         user_requester: Arc<CachedRequester<OsuMultipleUser>>,
         beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
         credentials_grant_client: Arc<CredentialsGrantClient>,
-    ) -> Result<ActivityTracker, AppError> {
+    ) -> Result<Arc<ActivityTracker>, AppError> {
         let (broadcast_sender, _broadcast_receiver) = broadcast::channel(50);
-        let mut activity_tracker = ActivityTracker {
-            activity_queue: VecDeque::new(),
+        let activity_tracker = ActivityTracker {
+            activity_queue: StdMutex::new(VecDeque::new()),
             queue_size,
             activity_broadcaster: broadcast_sender,
             user_requester,
             beatmap_requester,
             credentials_grant_client,
         };
-        activity_tracker.set_initial_activities(db).await?;
+        let activity_tracker = Arc::new(activity_tracker);
+        activity_tracker.set_initial_activities(&db).await?;
         activity_tracker.swap_beatmaps().await?;
+        activity_tracker.clone().start_loop(db).await?;
         Ok(activity_tracker)
     }
 
-    pub fn get_current_queue(&self) -> Vec<Activity> {
-        self.activity_queue.iter().cloned().collect()
+    pub fn lock_activity_queue(&self) -> Result<MutexGuard<VecDeque<Activity>>, AppError> {
+        self.activity_queue.lock().map_err(|_| AppError::Mutex)
     }
 
-    pub fn get_activity_queue_string(&self) -> Result<String, AppError> {
-        let string = serde_json::to_string(&self.activity_queue)?;
-        Ok(string)
+    pub fn add_new_activity_to_queue(&self, new_activity: Activity) -> Result<(), AppError> {
+        let mut locked_queue = self.lock_activity_queue()?;
+        locked_queue.push_back(new_activity);
+        if locked_queue.len() > self.queue_size.into() {
+            locked_queue.pop_front();
+        }
+        Ok(())
+    }
+
+    pub fn get_current_queue(&self) -> Result<Vec<Activity>, AppError> {
+        let cloned = { self.lock_activity_queue()?.iter().cloned().collect() };
+        Ok(cloned)
     }
 
     pub fn new_connection(&self) -> Result<(String, Receiver<String>), AppError> {
         Ok((
-            self.get_activity_queue_string()?,
+            serde_json::to_string(&self.activity_queue)?,
             self.activity_broadcaster.subscribe(),
         ))
     }
 
-    pub fn spam_prevention(&self, _new_activity: &Activity) -> bool {
-        true
+    pub fn spam_prevention(&self, _new_activity: &Activity) -> Result<bool, AppError> {
+        let locked_queue = self.lock_activity_queue()?;
+        Ok(true)
     }
 
-    pub async fn set_initial_activities(&mut self, db: &DatabaseClient) -> Result<(), AppError> {
+    pub async fn set_initial_activities(&self, db: &DatabaseClient) -> Result<(), AppError> {
         let step_size: usize = 100;
         'outer: for index in (0..).step_by(step_size) {
             let activity_chunk = db.get_activities(step_size as u32, index).await?;
             let activity_chunk_len = activity_chunk.len();
             for activity in activity_chunk {
-                if self.spam_prevention(&activity) {
-                    self.activity_queue.push_back(activity)
+                // unoptimized lock usage doesn't matter here.
+                // This is only going to run at the start of the program once
+                if self.spam_prevention(&activity)? {
+                    self.lock_activity_queue()?.push_back(activity);
                 }
-                if self.activity_queue.len() >= self.queue_size.into() {
+                if self.lock_activity_queue()?.len() >= self.queue_size.into() {
                     break 'outer;
                 }
             }
@@ -223,12 +208,13 @@ impl ActivityTracker {
         Ok(())
     }
 
-    pub async fn swap_beatmaps(&mut self) -> Result<(), AppError> {
-        let beatmaps_to_request: Vec<u32> = self
-            .activity_queue
-            .iter()
-            .filter_map(|activity| activity.get_beatmap_id())
-            .collect();
+    pub async fn swap_beatmaps(&self) -> Result<(), AppError> {
+        let beatmaps_to_request: Vec<u32> = {
+            self.lock_activity_queue()?
+                .iter()
+                .filter_map(|activity| activity.activity_type.get_beatmap_id())
+                .collect()
+        };
 
         let token = self.credentials_grant_client.get_access_token()?;
 
@@ -243,10 +229,10 @@ impl ActivityTracker {
             .clone()
             .get_multiple_osu(&users_to_request, &token)
             .await?;
-        self.activity_queue
+        self.lock_activity_queue()?
             .iter_mut()
             .filter_map(|activity| {
-                let id = activity.get_beatmap_id()?;
+                let id = activity.activity_type.get_beatmap_id()?;
                 // TODO: proper error handling plx
                 let beatmap = beatmaps.get(&id)?;
                 let user = users.get(&beatmap.user_id)?;
@@ -258,8 +244,128 @@ impl ActivityTracker {
                     user.username.clone(),
                     user.avatar_url.clone(),
                 );
-                activity.swap_beatmap_enum(BeatmapEnum::All(beatmap_small));
+                activity
+                    .activity_type
+                    .swap_beatmap_enum(BeatmapEnum::All(beatmap_small));
             });
+        Ok(())
+    }
+
+    async fn start_loop(self: Arc<Self>, db: Arc<DatabaseClient>) -> Result<(), AppError> {
+        let mut stream = db.start_activity_stream().await?;
+        let broadcast_sender = self.activity_broadcaster.clone();
+        let cloned_self = self.clone();
+        let mut retry_attempt = 1;
+        let mut retry_cooldown = 5;
+        tokio::spawn(async move {
+            loop {
+                // We can't return from this task
+                // Best we can do is to attempt to retry if something goes wrong
+                // This should mean that the rest of the backend is also not working
+                // TODO: maybe refactor the reconnect logic? It's in two places
+                let Some(next_result) = stream.next().await else {
+                    tracing::error!(
+                        "Activity stream closed. Attempting to reconnect. Attempt {}, Cooldown {} secs",
+                        retry_attempt,
+                        retry_cooldown
+                    );
+                    sleep(Duration::from_secs(retry_cooldown)).await;
+                    if retry_attempt < 10 {
+                        retry_cooldown += 10;
+                    }
+                    retry_attempt += 1;
+                    stream = if let Ok(new_stream) = db.start_activity_stream().await {
+                        new_stream
+                    } else {
+                        continue;
+                    };
+                    continue;
+                };
+
+                let new_activity = match next_result {
+                    Err(surrealdb::Error::Db(surrealdb::error::Db::Serialization(error))) => {
+                        tracing::debug!(
+                            "Serialization error. An activity record was manually deleted. \
+                            Details: {}",
+                            error
+                        );
+                        continue;
+                    }
+                    Err(error) => {
+                        tracing::error!(
+                            "Unhandled error occured in activity stream thread. \
+                            Trying to reconnect to the database. \
+                            Attempt {}, Cooldown {} secs. Details: {}",
+                            retry_attempt,
+                            retry_cooldown,
+                            error
+                        );
+                        sleep(Duration::from_secs(retry_cooldown)).await;
+                        if retry_attempt < 10 {
+                            retry_cooldown += 10;
+                        }
+                        retry_attempt += 1;
+                        stream = if let Ok(new_stream) = db.start_activity_stream().await {
+                            new_stream
+                        } else {
+                            continue;
+                        };
+                        continue;
+                    }
+
+                    Ok(new_activity) => new_activity,
+                };
+
+                // Logging unexpected notification actions. This could be useful for debbugging
+                // the errors that might occur with the stream especially for delete action. since
+                // the surrealdb sends undeserializable data for that, so we have to manually skip
+                // them in error handling. But that might not always be the case
+                match &new_activity.action {
+                    Action::Update => {
+                        tracing::debug!(
+                            "New activity update action with id: {}",
+                            &new_activity.data.id
+                        );
+                        continue;
+                    }
+                    Action::Delete => {
+                        tracing::debug!(
+                            "New activity delete action with id: {}",
+                            &new_activity.data.id
+                        );
+                        continue;
+                    }
+                    _ => {}
+                }
+
+                let Ok(true) = cloned_self.spam_prevention(&new_activity.data) else {
+                    continue;
+                };
+
+                let Ok(activity_string) = serde_json::to_string(&new_activity.data) else {
+                    tracing::error!(
+                        "Failed to convert new activity object to json string. Activity id: {}",
+                        &new_activity.data.id
+                    );
+                    continue;
+                };
+
+                if cloned_self
+                    .add_new_activity_to_queue(new_activity.data)
+                    .is_err()
+                {
+                    tracing::error!("Failed to add new activity to the queue");
+                    continue;
+                };
+
+                if let Ok(receiver_count) = broadcast_sender.send(activity_string) {
+                    tracing::info!("Sending new activity to {} connections", receiver_count);
+                } else {
+                    tracing::info!("There is no receiver for new activities");
+                }
+            }
+        });
+
         Ok(())
     }
 }
@@ -351,7 +457,9 @@ async fn handle_socket(
 }
 
 #[debug_handler]
-pub async fn get_latest_activities(State(state): State<Arc<AppState>>) -> Json<Vec<Activity>> {
-    let activities = state.activity_tracker.clone().get_current_queue();
-    Json(activities)
+pub async fn get_latest_activities(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<Activity>>, AppError> {
+    let activities = state.activity_tracker.get_current_queue()?;
+    Ok(Json(activities))
 }

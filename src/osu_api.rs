@@ -455,7 +455,7 @@ impl CredentialsGrantClient {
     fn start_loop(self: Arc<Self>) {
         let cloned_self = self.clone();
         let buffer_time = 120;
-        let mut retry_attempt = 0;
+        let mut retry_attempt = 1;
         let mut retry_cooldown = 5;
         tokio::spawn(async move {
             loop {

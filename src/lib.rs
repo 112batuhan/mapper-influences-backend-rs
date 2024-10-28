@@ -19,7 +19,7 @@ pub mod jwt;
 pub mod osu_api;
 
 pub struct AppState {
-    pub db: DatabaseClient,
+    pub db: Arc<DatabaseClient>,
     pub request: Arc<RequestClient>,
     pub jwt: JwtUtil,
     pub user_requester: Arc<CachedRequester<OsuMultipleUser>>,
@@ -43,12 +43,14 @@ impl AppState {
             86400,
         ));
 
-        let db = DatabaseClient::new()
-            .await
-            .expect("failed to initialize db connection");
+        let db = Arc::new(
+            DatabaseClient::new()
+                .await
+                .expect("failed to initialize db connection"),
+        );
 
         let activity_tracker = ActivityTracker::new(
-            &db,
+            db.clone(),
             50,
             user_requester.clone(),
             beatmap_requester.clone(),
@@ -57,7 +59,6 @@ impl AppState {
         .await
         // TODO: better handle errors
         .expect("failed to initialize activity tracker");
-        let activity_tracker = Arc::new(activity_tracker);
 
         AppState {
             db,
