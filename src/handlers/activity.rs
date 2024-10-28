@@ -417,7 +417,7 @@ impl ActivityTracker {
                     continue;
                 };
 
-                let new_activity = match next_result {
+                let mut new_activity = match next_result {
                     Err(surrealdb::Error::Db(surrealdb::error::Db::Serialization(error))) => {
                         tracing::debug!(
                             "Serialization error. An activity record was manually deleted. \
@@ -475,6 +475,63 @@ impl ActivityTracker {
 
                 let Ok(true) = cloned_self.spam_prevention(&new_activity.data) else {
                     continue;
+                };
+
+                if let Some(beatmap_id) = &new_activity.data.activity_type.get_beatmap_id() {
+                    let Ok(token) = cloned_self.credentials_grant_client.get_access_token() else {
+                        tracing::error!("RwLock error while trying to get access token");
+                        continue;
+                    };
+                    let Ok(beatmap_map) = cloned_self
+                        .beatmap_requester
+                        .clone()
+                        .get_multiple_osu(&[*beatmap_id], &token)
+                        .await
+                    else {
+                        tracing::error!(
+                            "Failed to get beatmap {} from the multi requester. Activity id: {}",
+                            beatmap_id,
+                            &new_activity.data.id
+                        );
+                        continue;
+                    };
+                    let Some(beatmap) = beatmap_map.into_values().next() else {
+                        tracing::error!(
+                            "Missing map in activity. This shouldn't happen. Activity id: {}",
+                            &new_activity.data.id
+                        );
+                        continue;
+                    };
+                    let Ok(user_map) = cloned_self
+                        .user_requester
+                        .clone()
+                        .get_multiple_osu(&[beatmap.user_id], &token)
+                        .await
+                    else {
+                        tracing::error!(
+                            "Failed to get user {} from the multi requester. Activity id: {}",
+                            beatmap_id,
+                            &new_activity.data.id
+                        );
+                        continue;
+                    };
+                    let Some(user) = user_map.into_values().next() else {
+                        tracing::error!(
+                            "Missing user in activity beatmap. Activity id: {}",
+                            &new_activity.data.id
+                        );
+                        continue;
+                    };
+
+                    let beatmap_with_data = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
+                        beatmap,
+                        user.username,
+                        user.avatar_url,
+                    );
+                    new_activity
+                        .data
+                        .activity_type
+                        .swap_beatmap_enum(BeatmapEnum::All(beatmap_with_data));
                 };
 
                 let Ok(activity_string) = serde_json::to_string(&new_activity.data) else {
