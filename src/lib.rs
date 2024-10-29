@@ -6,6 +6,7 @@ use axum::middleware;
 use axum::routing::any;
 use database::DatabaseClient;
 use handlers::activity::ActivityTracker;
+use handlers::leaderboard::LeaderboardCache;
 use jwt::JwtUtil;
 use osu_api::{
     CachedRequester, CredentialsGrantClient, OsuMultipleBeatmap, OsuMultipleUser, RequestClient,
@@ -25,6 +26,7 @@ pub struct AppState {
     pub user_requester: Arc<CachedRequester<OsuMultipleUser>>,
     pub beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
     pub activity_tracker: Arc<ActivityTracker>,
+    pub leaderboard_cache: LeaderboardCache,
 }
 
 impl AppState {
@@ -67,6 +69,7 @@ impl AppState {
             user_requester,
             beatmap_requester,
             activity_tracker,
+            leaderboard_cache: LeaderboardCache::new(300),
         }
     }
 }

@@ -5,8 +5,8 @@ use crate::{error::AppError, osu_api::Group};
 
 use super::DatabaseClient;
 
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
-pub struct Leaderboard {
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, PartialEq, Eq)]
+pub struct LeaderboardUser {
     id: u32,
     username: String,
     avatar_url: String,
@@ -25,8 +25,8 @@ impl DatabaseClient {
         ranked: bool,
         limit: u32,
         start: u32,
-    ) -> Result<Vec<Leaderboard>, AppError> {
-        let leaderboard: Vec<Leaderboard> = self
+    ) -> Result<Vec<LeaderboardUser>, AppError> {
+        let leaderboard: Vec<LeaderboardUser> = self
             .db
             .query(
                 "
