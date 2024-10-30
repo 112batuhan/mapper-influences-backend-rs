@@ -1,25 +1,15 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::AppError,
-    osu_api::{BeatmapEnum, Group},
-};
+use crate::{error::AppError, osu_api::BeatmapEnum};
 
-use super::{numerical_thing, DatabaseClient};
+use super::{numerical_thing, user::UserSmall, DatabaseClient};
 
 #[derive(Serialize, Deserialize, JsonSchema, PartialEq, Clone, Debug)]
 pub struct Influence {
-    pub user_id: u32,
-    pub country_code: String,
-    pub country_name: String,
-    pub avatar_url: String,
-    pub username: String,
-    pub groups: Vec<Group>,
-    pub ranked_maps: u32,
+    pub user: UserSmall,
     pub influence_type: u8,
     pub description: String,
-    pub mention_count: u32,
     pub beatmaps: Vec<BeatmapEnum>,
 }
 
@@ -116,18 +106,18 @@ impl DatabaseClient {
             .query(
                 "
                 SELECT 
-                    meta::id(out) as user_id,
-                    out.country_code as country_code,
-                    out.country_name as country_name,
-                    out.avatar_url as avatar_url,
-                    out.username as username,
-                    out.groups as groups,
+                    meta::id(out) as user.id,
+                    out.country_code as user.country_code,
+                    out.country_name as user.country_name,
+                    out.avatar_url as user.avatar_url,
+                    out.username as user.username,
+                    out.groups as user.groups,
                     out.ranked_and_approved_beatmapset_count 
-                        + out.guest_beatmapset_count as ranked_maps,
+                        + out.guest_beatmapset_count as user.ranked_maps,
+                    COUNT(->user<-influenced_by) as user.mentions,
                     influence_type,
                     description,
                     beatmaps,
-                    COUNT(->user<-influenced_by) as mention_count,
                     order
                 FROM $thing->influenced_by
                 ORDER BY order
@@ -146,20 +136,20 @@ impl DatabaseClient {
             .query(
                 "
                 SELECT 
-                    meta::id(in) as user_id,
-                    in.country_code as country_code,
-                    in.country_name as country_name,
-                    in.avatar_url as avatar_url,
-                    in.username as username,
-                    in.groups as groups,
+                    meta::id(in) as user.id,
+                    in.country_code as user.country_code,
+                    in.country_name as user.country_name,
+                    in.avatar_url as user.avatar_url,
+                    in.username as user.username,
+                    in.groups as user.groups,
                     in.ranked_and_approved_beatmapset_count 
-                        + in.guest_beatmapset_count as ranked_maps,
+                        + in.guest_beatmapset_count as user.ranked_maps,
+                    COUNT(<-user<-influenced_by) as user.mentions,
                     influence_type,
                     description,
-                    beatmaps,
-                    COUNT(<-user<-influenced_by) as mention_count
+                    beatmaps
                 FROM $thing<-influenced_by 
-                ORDER BY mention_count DESC
+                ORDER BY user.mentions DESC
                 ",
             )
             .bind(("thing", numerical_thing("user", user_id)))

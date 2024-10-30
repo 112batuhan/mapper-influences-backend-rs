@@ -4,6 +4,7 @@ use aide::axum::routing::{delete_with, get_with, patch_with, post_with};
 use aide::axum::ApiRouter;
 use axum::middleware;
 use axum::routing::any;
+use database::leaderboard::{LeaderboardBeatmap, LeaderboardUser};
 use database::DatabaseClient;
 use handlers::activity::ActivityTracker;
 use handlers::leaderboard::LeaderboardCache;
@@ -26,7 +27,8 @@ pub struct AppState {
     pub user_requester: Arc<CachedRequester<OsuMultipleUser>>,
     pub beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
     pub activity_tracker: Arc<ActivityTracker>,
-    pub leaderboard_cache: LeaderboardCache,
+    pub user_leaderboard_cache: LeaderboardCache<(bool, Option<String>), LeaderboardUser>,
+    pub beatmap_leaderboard_cache: LeaderboardCache<bool, LeaderboardBeatmap>,
 }
 
 impl AppState {
@@ -69,7 +71,8 @@ impl AppState {
             user_requester,
             beatmap_requester,
             activity_tracker,
-            leaderboard_cache: LeaderboardCache::new(300),
+            user_leaderboard_cache: LeaderboardCache::new(300),
+            beatmap_leaderboard_cache: LeaderboardCache::new(300),
         }
     }
 }
@@ -174,8 +177,14 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             get_with(handlers::auth::logout, |op| op.tag("Auth")),
         )
         .api_route(
-            "/leaderboard",
-            get_with(handlers::leaderboard::get_leaderboard, |op| {
+            "/leaderboard/user",
+            get_with(handlers::leaderboard::get_user_leaderboard, |op| {
+                op.tag("Leaderboard")
+            }),
+        )
+        .api_route(
+            "/leaderboard/beatmap",
+            get_with(handlers::leaderboard::get_beatmap_leaderboard, |op| {
                 op.tag("Leaderboard")
             }),
         )

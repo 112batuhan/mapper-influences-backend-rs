@@ -149,7 +149,7 @@ pub async fn get_user_influences(
     // back to the hashmap that contains the user data.
     let mut users_to_request: HashSet<u32> = beatmaps.values().map(|map| map.user_id).collect();
     influences.iter().for_each(|influence| {
-        users_to_request.remove(&influence.user_id);
+        users_to_request.remove(&influence.user.id);
     });
     let users_to_request: Vec<u32> = users_to_request.into_iter().collect();
     // Users queried
@@ -161,11 +161,11 @@ pub async fn get_user_influences(
     // DB users are inserted back to the user map
     users.extend(influences.iter().map(|mention| {
         (
-            mention.user_id,
+            mention.user.id,
             OsuMultipleUser {
-                id: mention.user_id,
-                avatar_url: mention.avatar_url.clone(),
-                username: mention.username.clone(),
+                id: mention.user.id,
+                avatar_url: mention.user.avatar_url.clone(),
+                username: mention.user.username.clone(),
             },
         )
     }));

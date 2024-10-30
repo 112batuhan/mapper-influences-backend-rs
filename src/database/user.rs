@@ -27,6 +27,7 @@ pub struct User {
     pub graveyard_beatmapset_count: u32,
     pub pending_beatmapset_count: u32,
     pub beatmaps: Vec<BeatmapEnum>,
+    pub mentions: Option<u32>,
 }
 
 impl From<UserOsu> for User {
@@ -48,6 +49,7 @@ impl From<UserOsu> for User {
             graveyard_beatmapset_count: user_osu.graveyard_beatmapset_count,
             pending_beatmapset_count: user_osu.pending_beatmapset_count,
             beatmaps: Vec::new(),
+            mentions: None,
         }
     }
 }
@@ -61,6 +63,7 @@ pub struct UserSmall {
     pub country_code: String,
     pub country_name: String,
     pub ranked_maps: u32,
+    pub mentions: Option<u32>,
 }
 
 impl From<UserOsu> for UserSmall {
@@ -73,6 +76,7 @@ impl From<UserOsu> for UserSmall {
             country_code: user.country.code,
             country_name: user.country.name,
             ranked_maps: user.ranked_and_approved_beatmapset_count + user.guest_beatmapset_count,
+            mentions: None,
         }
     }
 }
@@ -222,7 +226,8 @@ impl DatabaseClient {
                     guest_beatmapset_count,
                     loved_beatmapset_count,
                     graveyard_beatmapset_count,
-                    pending_beatmapset_count
+                    pending_beatmapset_count,
+                    count(<-influenced_by) as mentions
                 FROM ONLY $thing;
                 ",
             )
@@ -254,6 +259,7 @@ impl DatabaseClient {
                     groups,
                     ranked_and_approved_beatmapset_count 
                         + guest_beatmapset_count as ranked_maps
+                    count(<-influenced_by) as mentions
                 FROM $things;
                 ",
             )
