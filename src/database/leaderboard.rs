@@ -78,14 +78,14 @@ impl DatabaseClient {
                     count(beatmap) as count 
                 FROM (
                     (
-                    SELECT beatmaps
-                    FROM influenced_by
-                    WHERE $ranked_only = false OR <-user.ranked_mapper.at(0) = true
+                        SELECT beatmaps
+                        FROM influenced_by
+                        WHERE $ranked_only = false OR <-user.ranked_mapper.at(0) = true
                     )
-                .map(|$val| $val.values())
-                .flatten()
-                .flatten()
-                .map(|$val| {beatmap: $val})
+                    .map(|$val| $val.values())
+                    .flatten()
+                    .flatten()
+                    .map(|$val| {beatmap: $val})
                 )
                 GROUP BY beatmap 
                 ORDER BY count DESC
