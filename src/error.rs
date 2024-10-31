@@ -8,9 +8,6 @@ pub enum AppError {
     #[error("Missing user {0}")]
     MissingUser(u32),
 
-    #[error("Bio too long")]
-    BioTooLong,
-
     #[error("Missing user_token cookie")]
     MissingTokenCookie,
 
@@ -69,7 +66,7 @@ impl IntoResponse for AppError {
             | AppError::TaskJoin(_)
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie | AppError::JwtVerification => StatusCode::UNAUTHORIZED,
-            AppError::BioTooLong | AppError::MissingLayerJson => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::MissingLayerJson => StatusCode::UNPROCESSABLE_ENTITY,
 
             AppError::MissingUser(_) | Self::NonExistingMap(_) => StatusCode::NOT_FOUND,
         };

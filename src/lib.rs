@@ -110,7 +110,7 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             }),
         )
         .api_route(
-            "/influence/:influenced_to/bio",
+            "/influence/:influenced_to/description",
             patch_with(handlers::influence::update_influence_description, |op| {
                 op.tag("Influence")
             }),
