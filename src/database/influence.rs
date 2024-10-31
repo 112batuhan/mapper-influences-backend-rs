@@ -100,7 +100,12 @@ impl DatabaseClient {
         Ok(())
     }
 
-    pub async fn get_influences(&self, user_id: u32) -> Result<Vec<Influence>, AppError> {
+    pub async fn get_influences(
+        &self,
+        user_id: u32,
+        start: u32,
+        limit: u32,
+    ) -> Result<Vec<Influence>, AppError> {
         let influences: Vec<Influence> = self
             .db
             .query(
@@ -121,16 +126,25 @@ impl DatabaseClient {
                     order
                 FROM $thing->influenced_by
                 ORDER BY order
+                START $start
+                LIMIT $limit
                 ",
             )
             .bind(("thing", numerical_thing("user", user_id)))
+            .bind(("limit", limit))
+            .bind(("start", start))
             .await?
             .take(0)?;
 
         Ok(influences)
     }
 
-    pub async fn get_mentions(&self, user_id: u32) -> Result<Vec<Influence>, AppError> {
+    pub async fn get_mentions(
+        &self,
+        user_id: u32,
+        start: u32,
+        limit: u32,
+    ) -> Result<Vec<Influence>, AppError> {
         let influences: Vec<Influence> = self
             .db
             .query(
@@ -150,9 +164,13 @@ impl DatabaseClient {
                     beatmaps
                 FROM $thing<-influenced_by 
                 ORDER BY user.mentions DESC
+                START $start
+                LIMIT $limit
                 ",
             )
             .bind(("thing", numerical_thing("user", user_id)))
+            .bind(("limit", limit))
+            .bind(("start", start))
             .await?
             .take(0)?;
 

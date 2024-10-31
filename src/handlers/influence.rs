@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Extension, Json,
 };
 use futures::try_join;
@@ -15,6 +15,8 @@ use crate::{
     osu_api::{BeatmapEnum, GetID},
     AppState,
 };
+
+use super::PaginationQuery;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct Description {
@@ -116,19 +118,27 @@ pub async fn update_influence_type(
 }
 
 pub async fn get_user_mentions(
+    Query(pagination): Query<PaginationQuery>,
     Path(user_id): Path<u32>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<Influence>>, AppError> {
-    let mentions = state.db.get_mentions(user_id).await?;
+    let mentions = state
+        .db
+        .get_mentions(user_id, pagination.start, pagination.limit)
+        .await?;
     Ok(Json(mentions))
 }
 
 pub async fn get_user_influences(
+    Query(pagination): Query<PaginationQuery>,
     Path(user_id): Path<u32>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<Influence>>, AppError> {
-    let mut influences = state.db.get_influences(user_id).await?;
+    let mut influences = state
+        .db
+        .get_influences(user_id, pagination.start, pagination.limit)
+        .await?;
 
     let beatmaps_to_request: Vec<u32> = influences
         .iter()
