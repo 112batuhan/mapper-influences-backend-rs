@@ -483,6 +483,8 @@ impl CredentialsGrantClient {
                     retry_attempt += 1;
                     continue;
                 };
+                retry_attempt = 1;
+                retry_cooldown = 5;
                 let _ = cloned_self.update_token(token.access_token);
                 sleep(Duration::from_secs(token.expires_in as u64 - buffer_time)).await;
             }

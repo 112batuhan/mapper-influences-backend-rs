@@ -389,6 +389,10 @@ impl ActivityTracker {
                     }
                     retry_attempt += 1;
                     stream = if let Ok(new_stream) = db.start_activity_stream().await {
+                        tracing::info!(
+                            "Reconnected to activity stream after {} attempts",
+                            retry_attempt
+                        );
                         new_stream
                     } else {
                         continue;
@@ -420,6 +424,10 @@ impl ActivityTracker {
                         }
                         retry_attempt += 1;
                         stream = if let Ok(new_stream) = db.start_activity_stream().await {
+                            tracing::info!(
+                                "Reconnected to activity stream after {} attempts",
+                                retry_attempt
+                            );
                             new_stream
                         } else {
                             continue;
@@ -429,6 +437,8 @@ impl ActivityTracker {
 
                     Ok(new_activity) => new_activity,
                 };
+                retry_attempt = 1;
+                retry_cooldown = 5;
 
                 // Logging unexpected notification actions. This could be useful for debbugging
                 // the errors that might occur with the stream especially for delete action. since
