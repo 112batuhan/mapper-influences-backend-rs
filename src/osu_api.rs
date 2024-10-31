@@ -557,6 +557,77 @@ impl<T: DeserializeOwned + GetID + Clone + Send + 'static> CachedRequester<T> {
     }
 }
 
+pub struct CombinedRequester {
+    user_requester: Arc<CachedRequester<OsuMultipleUser>>,
+    beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
+}
+impl CombinedRequester {
+    pub fn new(client: Arc<RequestClient>) -> Arc<Self> {
+        let user_requester = Arc::new(CachedRequester::new(
+            client.clone(),
+            "https://osu.ppy.sh/api/v2/users",
+            24600,
+        ));
+        let beatmap_requester = Arc::new(CachedRequester::new(
+            client.clone(),
+            "https://osu.ppy.sh/api/v2/beatmaps",
+            86400,
+        ));
+        Arc::new(CombinedRequester {
+            user_requester,
+            beatmap_requester,
+        })
+    }
+
+    pub async fn get_beatmaps_with_user(
+        &self,
+        ids: &[u32],
+        access_token: &str,
+    ) -> Result<HashMap<u32, OsuBeatmapSmall>, AppError> {
+        let beatmap_map = self
+            .beatmap_requester
+            .clone()
+            .get_multiple_osu(ids, access_token)
+            .await?;
+        let users_to_request: Vec<u32> = beatmap_map
+            .values()
+            .map(|beatmap| beatmap.user_id)
+            .collect();
+        let user_map = self
+            .user_requester
+            .clone()
+            .get_multiple_osu(&users_to_request, access_token)
+            .await?;
+        let combined = beatmap_map
+            .into_iter()
+            .filter_map(|(beatmap_id, beatmap)| {
+                let user = user_map.get(&beatmap.user_id)?;
+                let new_beatmap = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
+                    beatmap,
+                    user.username.clone(),
+                    user.avatar_url.clone(),
+                );
+                Some((beatmap_id, new_beatmap))
+            })
+            .collect();
+
+        Ok(combined)
+    }
+
+    pub async fn get_beatmaps_only(
+        &self,
+        ids: &[u32],
+        access_token: &str,
+    ) -> Result<HashMap<u32, OsuMultipleBeatmap>, AppError> {
+        let beatmap_map = self
+            .beatmap_requester
+            .clone()
+            .get_multiple_osu(ids, access_token)
+            .await?;
+        Ok(beatmap_map)
+    }
+}
+
 #[cached(
     ty = "CustomCache<u32, UserOsu>",
     create = "{CustomCache::new(21600)}",

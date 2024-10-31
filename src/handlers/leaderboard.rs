@@ -9,6 +9,7 @@ use cached::Cached;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::osu_api::{BeatmapEnum, GetID};
 use crate::{
     custom_cache::CustomCache,
     database::leaderboard::{LeaderboardBeatmap, LeaderboardUser},
@@ -130,10 +131,34 @@ pub async fn get_beatmap_leaderboard(
     {
         return Ok(Json(LeaderboardResponse { leaderboard }));
     }
-    let mut leaderboard = state
+
+    let leaderboard = state
         .db
         .beatmap_leaderboard(query.ranked, leaderboard_cache_limit, 0)
         .await?;
+
+    let beatmaps_to_request: Vec<u32> = leaderboard
+        .iter()
+        .map(|entry| entry.beatmap.get_id())
+        .collect();
+
+    let access_token = state.credentials_grant_client.get_access_token()?;
+    let mut beatmaps = state
+        .cached_combined_requester
+        .clone()
+        .get_beatmaps_with_user(&beatmaps_to_request, &access_token)
+        .await?;
+    let mut leaderboard: Vec<LeaderboardBeatmap> = leaderboard
+        .into_iter()
+        .filter_map(|entry| {
+            // we can use remove here since all of the maps should be unique
+            let new_beatmap = beatmaps.remove(&entry.beatmap.get_id())?;
+            Some(LeaderboardBeatmap {
+                beatmap: BeatmapEnum::All(new_beatmap),
+                count: entry.count,
+            })
+        })
+        .collect();
     leaderboard.shrink_to_fit();
 
     let limited_leaderboard = leaderboard

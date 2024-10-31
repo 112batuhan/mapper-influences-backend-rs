@@ -9,9 +9,7 @@ use database::DatabaseClient;
 use handlers::activity::ActivityTracker;
 use handlers::leaderboard::LeaderboardCache;
 use jwt::JwtUtil;
-use osu_api::{
-    CachedRequester, CredentialsGrantClient, OsuMultipleBeatmap, OsuMultipleUser, RequestClient,
-};
+use osu_api::{CombinedRequester, CredentialsGrantClient, RequestClient};
 
 pub mod custom_cache;
 pub mod database;
@@ -24,9 +22,9 @@ pub struct AppState {
     pub db: Arc<DatabaseClient>,
     pub request: Arc<RequestClient>,
     pub jwt: JwtUtil,
-    pub user_requester: Arc<CachedRequester<OsuMultipleUser>>,
-    pub beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
+    pub cached_combined_requester: Arc<CombinedRequester>,
     pub activity_tracker: Arc<ActivityTracker>,
+    pub credentials_grant_client: Arc<CredentialsGrantClient>,
     pub user_leaderboard_cache: LeaderboardCache<(bool, Option<String>), LeaderboardUser>,
     pub beatmap_leaderboard_cache: LeaderboardCache<bool, LeaderboardBeatmap>,
 }
@@ -36,29 +34,19 @@ impl AppState {
         request: Arc<RequestClient>,
         credentials_grant_client: Arc<CredentialsGrantClient>,
     ) -> AppState {
-        let user_requester = Arc::new(CachedRequester::new(
-            request.clone(),
-            "https://osu.ppy.sh/api/v2/users",
-            24600,
-        ));
-        let beatmap_requester = Arc::new(CachedRequester::new(
-            request.clone(),
-            "https://osu.ppy.sh/api/v2/beatmaps",
-            86400,
-        ));
-
         let db = Arc::new(
             DatabaseClient::new()
                 .await
                 .expect("failed to initialize db connection"),
         );
 
+        let cached_combined_requester = CombinedRequester::new(request.clone());
+
         let activity_tracker = ActivityTracker::new(
             db.clone(),
             50,
-            user_requester.clone(),
-            beatmap_requester.clone(),
-            credentials_grant_client,
+            cached_combined_requester.clone(),
+            credentials_grant_client.clone(),
         )
         .await
         // TODO: better handle errors
@@ -66,11 +54,11 @@ impl AppState {
 
         AppState {
             db,
-            request,
+            request: request.clone(),
             jwt: JwtUtil::new_jwt(),
-            user_requester,
-            beatmap_requester,
+            cached_combined_requester,
             activity_tracker,
+            credentials_grant_client,
             user_leaderboard_cache: LeaderboardCache::new(300),
             beatmap_leaderboard_cache: LeaderboardCache::new(300),
         }

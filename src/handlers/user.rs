@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     extract::{Path, State},
@@ -12,7 +12,7 @@ use crate::{
     database::user::User,
     error::AppError,
     jwt::AuthData,
-    osu_api::{cached_osu_user_request, BeatmapEnum, OsuBeatmapSmall, OsuMultipleUser},
+    osu_api::{cached_osu_user_request, BeatmapEnum, GetID},
     AppState,
 };
 
@@ -26,7 +26,7 @@ pub struct Order {
     pub influence_ids: Vec<u32>,
 }
 
-pub async fn user_data_handle(
+async fn user_data_handle(
     state: Arc<AppState>,
     osu_token: String,
     mut user: User,
@@ -34,59 +34,19 @@ pub async fn user_data_handle(
     let beatmaps_to_request: Vec<u32> = user
         .beatmaps
         .iter()
-        .filter_map(|map| match map {
-            BeatmapEnum::Id(id) => Some(id),
-            BeatmapEnum::All(_) => None,
-        })
+        .map(|map| map.get_id())
         .unique()
-        .copied()
         .collect();
+
     let beatmaps = state
-        .beatmap_requester
+        .cached_combined_requester
         .clone()
-        .get_multiple_osu(&beatmaps_to_request, &osu_token)
+        .get_beatmaps_with_user(&beatmaps_to_request, &osu_token)
         .await?;
 
-    // Get a list of users to request. User that got queried with the db will be put
-    // back to the hashmap that contains the user data.
-    let mut users_needed: HashSet<u32> = beatmaps.values().map(|beatmap| beatmap.user_id).collect();
-    users_needed.remove(&user.id);
-    let users_needed: Vec<u32> = users_needed.into_iter().collect();
+    let new_beatmaps = beatmaps.into_values().map(BeatmapEnum::All).collect();
 
-    // users queried
-    let mut users = state
-        .user_requester
-        .clone()
-        .get_multiple_osu(&users_needed, &osu_token)
-        .await?;
-
-    // Db user put back to the user map
-    users.insert(
-        user.id,
-        OsuMultipleUser {
-            id: user.id,
-            avatar_url: user.avatar_url.clone(),
-            username: user.username.clone(),
-        },
-    );
-
-    // beatmaps populated with user data
-    let beatmaps: Vec<BeatmapEnum> = beatmaps
-        .into_values()
-        .filter_map(|beatmap| {
-            //NOTE: Possible fail point, properly handle errors
-            //there could be missing maps but extremely unlikely
-            let user = users.get(&beatmap.user_id)?;
-            let beatmap_small = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
-                beatmap,
-                user.username.clone(),
-                user.avatar_url.clone(),
-            );
-            Some(BeatmapEnum::All(beatmap_small))
-        })
-        .collect();
-
-    user.beatmaps = beatmaps;
+    user.beatmaps = new_beatmaps;
     Ok(user)
 }
 
@@ -146,9 +106,9 @@ pub async fn add_user_beatmap(
     State(state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
     let beatmap = state
-        .beatmap_requester
+        .cached_combined_requester
         .clone()
-        .get_multiple_osu(&[beatmap_id], &auth_data.osu_token)
+        .get_beatmaps_only(&[beatmap_id], &auth_data.osu_token)
         .await?;
 
     if beatmap.is_empty() {

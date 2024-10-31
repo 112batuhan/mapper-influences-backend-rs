@@ -28,10 +28,7 @@ use tokio::{
 use crate::{
     database::{user::UserSmall, DatabaseClient},
     error::AppError,
-    osu_api::{
-        BeatmapEnum, CachedRequester, CredentialsGrantClient, GetID, OsuBeatmapSmall,
-        OsuMultipleBeatmap, OsuMultipleUser,
-    },
+    osu_api::{BeatmapEnum, CombinedRequester, CredentialsGrantClient, GetID},
     AppState,
 };
 
@@ -146,8 +143,7 @@ pub struct ActivityTracker {
     activity_queue: StdMutex<VecDeque<Activity>>,
     queue_size: u8,
     activity_broadcaster: Sender<String>,
-    user_requester: Arc<CachedRequester<OsuMultipleUser>>,
-    beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
+    cached_combined_requester: Arc<CombinedRequester>,
     credentials_grant_client: Arc<CredentialsGrantClient>,
 }
 
@@ -155,8 +151,7 @@ impl ActivityTracker {
     pub async fn new(
         db: Arc<DatabaseClient>,
         queue_size: u8,
-        user_requester: Arc<CachedRequester<OsuMultipleUser>>,
-        beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
+        cached_combined_requester: Arc<CombinedRequester>,
         credentials_grant_client: Arc<CredentialsGrantClient>,
     ) -> Result<Arc<ActivityTracker>, AppError> {
         let (broadcast_sender, _broadcast_receiver) = broadcast::channel(50);
@@ -164,8 +159,7 @@ impl ActivityTracker {
             activity_queue: StdMutex::new(VecDeque::new()),
             queue_size,
             activity_broadcaster: broadcast_sender,
-            user_requester,
-            beatmap_requester,
+            cached_combined_requester,
             credentials_grant_client,
         };
         let activity_tracker = Arc::new(activity_tracker);
@@ -348,36 +342,23 @@ impl ActivityTracker {
         };
 
         let token = self.credentials_grant_client.get_access_token()?;
-
         let beatmaps = self
-            .beatmap_requester
+            .cached_combined_requester
             .clone()
-            .get_multiple_osu(&beatmaps_to_request, &token)
+            .get_beatmaps_with_user(&beatmaps_to_request, &token)
             .await?;
-        let users_to_request: Vec<u32> = beatmaps.values().map(|beatmap| beatmap.user_id).collect();
-        let users = self
-            .user_requester
-            .clone()
-            .get_multiple_osu(&users_to_request, &token)
-            .await?;
+
         self.lock_activity_queue()?
             .iter_mut()
             .filter_map(|activity| {
                 let id = activity.activity_type.get_beatmap_id()?;
-                // TODO: proper error handling plx
                 let beatmap = beatmaps.get(&id)?;
-                let user = users.get(&beatmap.user_id)?;
-                Some((activity, beatmap, user))
+                Some((activity, beatmap))
             })
-            .for_each(|(activity, beatmap, user)| {
-                let beatmap_small = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
-                    beatmap.clone(),
-                    user.username.clone(),
-                    user.avatar_url.clone(),
-                );
+            .for_each(|(activity, beatmap)| {
                 activity
                     .activity_type
-                    .swap_beatmap_enum(BeatmapEnum::All(beatmap_small));
+                    .swap_beatmap_enum(BeatmapEnum::All(beatmap.clone()));
             });
         Ok(())
     }
@@ -478,56 +459,35 @@ impl ActivityTracker {
                         tracing::error!("RwLock error while trying to get access token");
                         continue;
                     };
-                    let Ok(beatmap_map) = cloned_self
-                        .beatmap_requester
-                        .clone()
-                        .get_multiple_osu(&[*beatmap_id], &token)
+
+                    let new_beatmap_map = match cloned_self
+                        .cached_combined_requester
+                        .get_beatmaps_with_user(&[*beatmap_id], &token)
                         .await
-                    else {
-                        tracing::error!(
-                            "Failed to get beatmap {} from the multi requester. Activity id: {}",
-                            beatmap_id,
-                            &new_activity.data.id
-                        );
-                        continue;
+                    {
+                        Ok(beatmap) => beatmap,
+                        Err(error) => {
+                            tracing::error!(
+                                "Failed to request beatmap. Activity id: {}. Error: {}",
+                                &new_activity.data.id,
+                                error
+                            );
+                            continue;
+                        }
                     };
-                    let Some(beatmap) = beatmap_map.into_values().next() else {
+
+                    let Some(new_beatmap) = new_beatmap_map.into_values().next() else {
                         tracing::error!(
-                            "Missing map in activity. This shouldn't happen. Activity id: {}",
-                            &new_activity.data.id
-                        );
-                        continue;
-                    };
-                    let Ok(user_map) = cloned_self
-                        .user_requester
-                        .clone()
-                        .get_multiple_osu(&[beatmap.user_id], &token)
-                        .await
-                    else {
-                        tracing::error!(
-                            "Failed to get user {} from the multi requester. Activity id: {}",
-                            beatmap_id,
-                            &new_activity.data.id
-                        );
-                        continue;
-                    };
-                    let Some(user) = user_map.into_values().next() else {
-                        tracing::error!(
-                            "Missing user in activity beatmap. Activity id: {}",
+                            "Failed to get beatmap. This should never happen! Activity id: {}",
                             &new_activity.data.id
                         );
                         continue;
                     };
 
-                    let beatmap_with_data = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
-                        beatmap,
-                        user.username,
-                        user.avatar_url,
-                    );
                     new_activity
                         .data
                         .activity_type
-                        .swap_beatmap_enum(BeatmapEnum::All(beatmap_with_data));
+                        .swap_beatmap_enum(BeatmapEnum::All(new_beatmap));
                 };
 
                 let Ok(activity_string) = serde_json::to_string(&new_activity.data) else {
