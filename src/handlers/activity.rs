@@ -352,6 +352,8 @@ impl ActivityTracker {
             .iter_mut()
             .filter_map(|activity| {
                 let id = activity.activity_type.get_beatmap_id()?;
+                // it's not ok to use remove here
+                // there could be beatmaps used more than once
                 let beatmap = beatmaps.get(&id)?;
                 Some((activity, beatmap))
             })

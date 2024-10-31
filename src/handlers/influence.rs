@@ -149,6 +149,8 @@ pub async fn get_user_influences(
             .beatmaps
             .iter()
             .filter_map(|beatmap| {
+                // it's not ok to use remove here
+                // there could be beatmaps used more than once
                 let beatmap = beatmaps.get(&beatmap.get_id())?;
                 Some(BeatmapEnum::All(beatmap.clone()))
             })

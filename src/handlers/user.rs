@@ -38,13 +38,22 @@ async fn user_data_handle(
         .unique()
         .collect();
 
-    let beatmaps = state
+    let mut beatmaps = state
         .cached_combined_requester
         .clone()
         .get_beatmaps_with_user(&beatmaps_to_request, &osu_token)
         .await?;
 
-    let new_beatmaps = beatmaps.into_values().map(BeatmapEnum::All).collect();
+    // to keep the order, we iterate user beatmaps
+    let new_beatmaps = user
+        .beatmaps
+        .iter()
+        .filter_map(|beatmap| {
+            // remove should be ok, we keep beatmaps as set in db, so they should be unique
+            let beatmap = beatmaps.remove(&beatmap.get_id())?;
+            Some(BeatmapEnum::All(beatmap))
+        })
+        .collect();
 
     user.beatmaps = new_beatmaps;
     Ok(user)

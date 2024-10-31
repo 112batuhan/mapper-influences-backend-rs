@@ -115,9 +115,6 @@ pub async fn get_user_leaderboard(
     }))
 }
 
-/// TODO: refactor the fricking beatmap request thing at this point, this is the 4th place that I
-/// will be using it, Just merge cached requesters and get them, no need to do premature
-/// optimization like in other places,
 pub async fn get_beatmap_leaderboard(
     Query(query): Query<LeaderboardQuery>,
     State(state): State<Arc<AppState>>,
