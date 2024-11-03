@@ -31,15 +31,12 @@ pub trait Retryable {
                             cooldown,
                             error
                         );
-
-                        let cooldown = if cooldown > longest_cooldown {
-                            longest_cooldown
-                        } else {
-                            let fibo_temp = cooldown;
-                            cooldown += cooldown_fibo_last;
-                            cooldown_fibo_last = fibo_temp;
-                            cooldown
-                        };
+                        let fibo_temp = cooldown;
+                        cooldown += cooldown_fibo_last;
+                        if cooldown > longest_cooldown {
+                            cooldown = longest_cooldown;
+                        }
+                        cooldown_fibo_last = fibo_temp;
                         attempt += 1;
                         tokio::time::sleep(Duration::from_secs(cooldown.into())).await;
                     }
