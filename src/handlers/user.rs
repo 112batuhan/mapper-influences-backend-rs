@@ -23,7 +23,7 @@ pub struct Bio {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Order {
-    pub influence_ids: Vec<u32>,
+    pub influence_user_ids: Vec<u32>,
 }
 
 async fn user_data_handle(
@@ -150,7 +150,7 @@ pub async fn set_influence_order(
 ) -> Result<(), AppError> {
     state
         .db
-        .set_influence_order(auth_data.user_id, &order_request.influence_ids)
+        .set_influence_order(auth_data.user_id, &order_request.influence_user_ids)
         .await?;
     Ok(())
 }
