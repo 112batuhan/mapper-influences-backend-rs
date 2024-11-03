@@ -1811,6 +1811,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af"
 dependencies = [
  "hashbrown 0.14.5",
+ "serde",
 ]
 
 [[package]]
@@ -2366,7 +2367,6 @@ dependencies = [
  "http",
  "itertools 0.13.0",
  "jwt-simple",
- "ordermap",
  "reqwest",
  "schemars",
  "serde",
@@ -2789,16 +2789,6 @@ checksum = "49203cdcae0030493bad186b28da2fa25645fa276a51b6fec8010d281e02ef79"
 dependencies = [
  "dlv-list",
  "hashbrown 0.14.5",
-]
-
-[[package]]
-name = "ordermap"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31f2bd7b03bf2c767e1bb7b91505dbe022833776e60480275e6f2fb0db0c7503"
-dependencies = [
- "indexmap 2.6.0",
- "serde",
 ]
 
 [[package]]

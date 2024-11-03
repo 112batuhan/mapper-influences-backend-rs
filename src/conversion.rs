@@ -1,7 +1,7 @@
 use futures::future::join_all;
+use hashlink::LinkedHashSet;
 use mapper_influences_backend_rs::database::{numerical_thing, DatabaseClient};
 use mapper_influences_backend_rs::osu_api::Group;
-use ordermap::OrderSet;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -35,7 +35,7 @@ pub struct User {
     have_ranked_map: bool,
     #[serde(default)]
     #[serde(skip_serializing)]
-    influence_order: OrderSet<i64>,
+    influence_order: LinkedHashSet<i64>,
     #[serde(rename(deserialize = "country"))]
     country_code: String,
     #[serde(default)]
