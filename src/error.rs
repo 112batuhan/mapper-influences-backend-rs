@@ -24,6 +24,12 @@ pub enum AppError {
     #[error("Value Missing")]
     MissingLayerJson,
 
+    #[error("Activity stream closed")]
+    ActivityStreamClosed,
+
+    #[error("SurrealDB serialization error: {0}")]
+    SurrealDbSerialization(String),
+
     #[error("Map with id {0} could not be found on osu! API")]
     NonExistingMap(u32),
 
@@ -64,6 +70,8 @@ impl IntoResponse for AppError {
             | AppError::RwLock
             | AppError::SerdeJson(_)
             | AppError::TaskJoin(_)
+            | AppError::ActivityStreamClosed
+            | AppError::SurrealDbSerialization(_)
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie | AppError::JwtVerification => StatusCode::UNAUTHORIZED,
             AppError::MissingLayerJson => StatusCode::UNPROCESSABLE_ENTITY,

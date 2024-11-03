@@ -1,6 +1,12 @@
+use std::sync::Arc;
+
 use surrealdb::{method::QueryStream, Notification};
 
-use crate::{error::AppError, handlers::activity::Activity};
+use crate::{
+    error::AppError,
+    handlers::activity::Activity,
+    retry::{RetryAction, RetryOption, Retryable},
+};
 
 use super::{numerical_thing, DatabaseClient};
 
@@ -78,5 +84,21 @@ impl DatabaseClient {
             .await?;
         let stream = response.stream::<Notification<Activity>>(0)?;
         Ok(stream)
+    }
+}
+
+impl Retryable for Arc<DatabaseClient> {
+    type Value = QueryStream<Notification<Activity>>;
+    type Err = AppError;
+    async fn retry(
+        &mut self,
+    ) -> Result<QueryStream<Notification<Activity>>, RetryAction<AppError>> {
+        self.start_activity_stream().await.map_err(|err| {
+            RetryAction::new(
+                err,
+                "Failed to connect to activity stream".to_string(),
+                RetryOption::Retry,
+            )
+        })
     }
 }

@@ -5,7 +5,7 @@ use std::{
 };
 
 use cached::proc_macro::cached;
-use futures::future::try_join_all;
+use futures::{future::try_join_all, Future};
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -13,7 +13,11 @@ use serde_json::Value;
 use tokio::{sync::Semaphore, time::sleep};
 use tracing::error;
 
-use crate::{custom_cache::CustomCache, error::AppError};
+use crate::{
+    custom_cache::CustomCache,
+    error::AppError,
+    retry::{Retry, RetryAction, RetryOption, Retryable},
+};
 
 static CLIENT_ID: LazyLock<String> =
     LazyLock::new(|| std::env::var("CLIENT_ID").expect("Missing CLIENT_ID environment variable"));
@@ -437,6 +441,20 @@ impl RequestClient {
     }
 }
 
+impl Retryable for Arc<RequestClient> {
+    type Value = OsuAuthToken;
+    type Err = AppError;
+    async fn retry(&mut self) -> Result<OsuAuthToken, RetryAction<AppError>> {
+        self.get_client_credentials_token().await.map_err(|err| {
+            RetryAction::new(
+                err,
+                "Failed to get client credential grant token".to_string(),
+                RetryOption::Retry,
+            )
+        })
+    }
+}
+
 /// A wrapper to [`RequestClient`] to store and update credentials grant client auth method token
 ///
 /// Will be used to request activity data and daily update data
@@ -462,30 +480,17 @@ impl CredentialsGrantClient {
     }
 
     fn start_loop(self: Arc<Self>) {
-        let cloned_self = self.clone();
         let buffer_time = 120;
-        let mut retry_attempt = 1;
-        let mut retry_cooldown = 5;
+        let client_clone = self.client.clone();
+        let mut retryer = Retry::new(60, client_clone);
+
         tokio::spawn(async move {
             loop {
                 // we can't fail this task, best we can do is to retry. If this doesn't work,
                 // then there is a good chance that the rest of the requests won't work either
-                let Ok(token) = cloned_self.client.get_client_credentials_token().await else {
-                    error!(
-                        "Failed to get client credentials token. 
-                        Attempting to retry. Attempt {}, Cooldown {} secs",
-                        retry_attempt, retry_cooldown
-                    );
-                    sleep(Duration::from_secs(retry_cooldown)).await;
-                    if retry_attempt < 10 {
-                        retry_cooldown += 10;
-                    }
-                    retry_attempt += 1;
-                    continue;
-                };
-                retry_attempt = 1;
-                retry_cooldown = 5;
-                let _ = cloned_self.update_token(token.access_token);
+                let token = retryer.retry_until_success().await;
+
+                let _ = self.update_token(token.access_token);
                 sleep(Duration::from_secs(token.expires_in as u64 - buffer_time)).await;
             }
         });
