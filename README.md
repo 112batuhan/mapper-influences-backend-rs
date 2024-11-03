@@ -12,7 +12,9 @@
 
 Mapper influences backend code.
 This is actually a rewrite of [this repository](https://github.com/aticie/Mapper-Influences-Backend). 
-This implementation has more complete responses and optimizes osu! API calls and uses SurrealDB instead MongoDB as database.
+
+This implementation has more complete responses, optimizes osu! API calls and uses SurrealDB instead MongoDB as database.
+I'm more comfortable with rust and strong types so that's going to make things easier for me going forward.
 
 `/docs` for endpoint documentation.
 
