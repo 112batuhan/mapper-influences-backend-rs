@@ -8,7 +8,6 @@ use axum::{
 use cached::Cached;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tracing::instrument;
 
 use crate::osu_api::{BeatmapEnum, GetID};
 use crate::{

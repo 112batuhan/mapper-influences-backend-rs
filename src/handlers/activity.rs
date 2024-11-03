@@ -169,9 +169,10 @@ impl ActivityTracker {
         let locked_queue = self.lock_activity_queue()?;
 
         match &new_activity.activity_type {
-            ActivityType::EditBio { .. } => Ok(!locked_queue
-                .iter()
-                .any(|old_activity| new_activity.user.id == old_activity.user.id)),
+            ActivityType::EditBio { .. } => Ok(!locked_queue.iter().any(|old_activity| {
+                new_activity.user.id == old_activity.user.id
+                    && matches!(old_activity.activity_type, ActivityType::EditBio { .. })
+            })),
             ActivityType::AddUserBeatmap {
                 beatmap: new_beatmap,
             } => {
