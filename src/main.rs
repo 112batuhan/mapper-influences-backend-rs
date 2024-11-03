@@ -55,7 +55,10 @@ async fn main() {
         .with_state(state)
         .into_make_service_with_connect_info::<SocketAddr>();
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
+    let port = std::env::var("PORT").expect("PORT enviroment variable is not set");
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", &port))
+        .await
+        .unwrap();
     info!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }

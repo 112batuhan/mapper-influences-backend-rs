@@ -2,18 +2,37 @@ version: '3'
 
 services:
   surrealdb:
+    image: surrealdb/surrealdb:latest
     env_file:
       - .env
-    entrypoint: 
-      - /surreal 
-      - start 
+    entrypoint:
+      - /surreal
+      - start
       - --user
       - $SURREAL_USER
       - --pass
       - $SURREAL_PASS
       - --log
-      - debug 
-    image: surrealdb/surrealdb:latest
+      - debug
     ports:
-      - 8100:8000
+      - "8100:8000"
+
+  mapper_influences_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - surrealdb
+    ports:
+      - "${PORT}:${PORT}"
+    environment:
+      SURREAL_URL: $SURREAL_URL
+      CLIENT_ID: $CLIENT_ID
+      CLIENT_SECRET: $CLIENT_SECRET
+      REDIRECT_URI: $REDIRECT_URI
+      POST_LOGIN_REDIRECT_URI: $POST_LOGIN_REDIRECT_URI
+      JWT_SECRET_KEY: $JWT_SECRET_KEY
+      PORT: $PORT
 

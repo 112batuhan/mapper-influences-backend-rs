@@ -1,11 +1,11 @@
 [package]
-default-run = "main"
+default-run = "mapper-influences-backend"
 edition = "2021"
 name = "mapper-influences-backend-rs"
 version = "0.1.0"
 
 [[bin]]
-name = "main"
+name = "mapper-influences-backend"
 path = "src/main.rs"
 
 [[bin]]
