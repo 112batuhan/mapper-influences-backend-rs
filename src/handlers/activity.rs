@@ -2,7 +2,6 @@ use std::{
     collections::VecDeque,
     net::SocketAddr,
     sync::{Arc, Mutex as StdMutex, MutexGuard},
-    time::Duration,
 };
 
 use axum::{
@@ -13,23 +12,20 @@ use axum::{
     response::Response,
     Json,
 };
-use futures::{future::err, Future, SinkExt, Stream, StreamExt};
+use futures::{SinkExt, StreamExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use surrealdb::{method::QueryStream, sql::Datetime, Action, Notification};
-use tokio::{
-    sync::{
-        broadcast::{self, Receiver, Sender},
-        Mutex,
-    },
-    time::sleep,
+use surrealdb::{sql::Datetime, Action};
+use tokio::sync::{
+    broadcast::{self, Receiver, Sender},
+    Mutex,
 };
 
 use crate::{
     database::{user::UserSmall, DatabaseClient},
     error::AppError,
     osu_api::{BeatmapEnum, CombinedRequester, CredentialsGrantClient, GetID},
-    retry::{RetryAction, RetryOption, Retryable},
+    retry::Retryable,
     AppState,
 };
 
@@ -80,33 +76,7 @@ pub enum ActivityType {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ActivityGroup {
-    UserBeatmap,
-    InfluenceAdd,
-    InfluenceRemove,
-    InfluenceEdit,
-    InfluenceBeatmap,
-    Bio,
-    Other,
-}
-
 impl ActivityType {
-    pub fn group(&self) -> ActivityGroup {
-        match self {
-            ActivityType::Login { .. } => ActivityGroup::Other,
-            ActivityType::EditBio { .. } => ActivityGroup::Bio,
-            ActivityType::AddUserBeatmap { .. } => ActivityGroup::UserBeatmap,
-            ActivityType::RemoveUserBeatmap { .. } => ActivityGroup::UserBeatmap,
-            ActivityType::AddInfluence { .. } => ActivityGroup::InfluenceAdd,
-            ActivityType::RemoveInfluence { .. } => ActivityGroup::InfluenceRemove,
-            ActivityType::EditInfluenceDesc { .. } => ActivityGroup::InfluenceEdit,
-            ActivityType::EditInfluenceType { .. } => ActivityGroup::InfluenceEdit,
-            ActivityType::AddInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
-            ActivityType::RemoveInfluenceBeatmap { .. } => ActivityGroup::InfluenceBeatmap,
-        }
-    }
-
     pub fn get_beatmap_id(&self) -> Option<u32> {
         let beatmap_enum = match self {
             ActivityType::AddInfluenceBeatmap { beatmap, .. }
@@ -166,7 +136,7 @@ impl ActivityTracker {
         let activity_tracker = Arc::new(activity_tracker);
         activity_tracker.set_initial_activities(&db).await?;
         activity_tracker.swap_beatmaps().await?;
-        //activity_tracker.clone().start_loop(db).await?;
+        activity_tracker.clone().start_loop(db).await?;
         Ok(activity_tracker)
     }
 
@@ -366,134 +336,134 @@ impl ActivityTracker {
         Ok(())
     }
 
-    // async fn start_loop(self: Arc<Self>, db: Arc<DatabaseClient>) -> Result<(), AppError> {
-    //     let mut stream = db.start_activity_stream().await?;
-    //     let broadcast_sender = self.activity_broadcaster.clone();
-    //     let cloned_self = self.clone();
-    //     tokio::spawn(async move {
-    //         loop {
-    //             // We can't return from this task
-    //             // Best we can do is to attempt to retry if something goes wrong
-    //             // This should mean that the rest of the backend is also not working
-    //
-    //             // Logging unexpected notification actions. This could be useful for debbugging
-    //             // the errors that might occur with the stream especially for delete action. since
-    //             // the surrealdb sends undeserializable data for that, so we have to manually skip
-    //             // them in error handling. But that might not always be the case
-    //             match &new_activity.action {
-    //                 Action::Update => {
-    //                     tracing::debug!(
-    //                         "New activity update action with id: {}",
-    //                         &new_activity.data.id
-    //                     );
-    //                     continue;
-    //                 }
-    //                 Action::Delete => {
-    //                     tracing::debug!(
-    //                         "New activity delete action with id: {}",
-    //                         &new_activity.data.id
-    //                     );
-    //                     continue;
-    //                 }
-    //                 _ => {}
-    //             }
-    //
-    //             let Ok(true) = cloned_self.spam_prevention(&new_activity.data) else {
-    //                 continue;
-    //             };
-    //
-    //             if let Some(beatmap_id) = &new_activity.data.activity_type.get_beatmap_id() {
-    //                 let Ok(token) = cloned_self.credentials_grant_client.get_access_token() else {
-    //                     tracing::error!("RwLock error while trying to get access token");
-    //                     continue;
-    //                 };
-    //
-    //                 let new_beatmap_map = match cloned_self
-    //                     .cached_combined_requester
-    //                     .get_beatmaps_with_user(&[*beatmap_id], &token)
-    //                     .await
-    //                 {
-    //                     Ok(beatmap) => beatmap,
-    //                     Err(error) => {
-    //                         tracing::error!(
-    //                             "Failed to request beatmap. Activity id: {}. Error: {}",
-    //                             &new_activity.data.id,
-    //                             error
-    //                         );
-    //                         continue;
-    //                     }
-    //                 };
-    //
-    //                 let Some(new_beatmap) = new_beatmap_map.into_values().next() else {
-    //                     tracing::error!(
-    //                         "Failed to get beatmap. This should never happen! Activity id: {}",
-    //                         &new_activity.data.id
-    //                     );
-    //                     continue;
-    //                 };
-    //
-    //                 new_activity
-    //                     .data
-    //                     .activity_type
-    //                     .swap_beatmap_enum(BeatmapEnum::All(new_beatmap));
-    //             };
-    //
-    //             let Ok(activity_string) = serde_json::to_string(&new_activity.data) else {
-    //                 tracing::error!(
-    //                     "Failed to convert new activity object to json string. Activity id: {}",
-    //                     &new_activity.data.id
-    //                 );
-    //                 continue;
-    //             };
-    //
-    //             if cloned_self
-    //                 .add_new_activity_to_queue(new_activity.data)
-    //                 .is_err()
-    //             {
-    //                 tracing::error!("Failed to add new activity to the queue");
-    //                 continue;
-    //             };
-    //
-    //             if let Ok(receiver_count) = broadcast_sender.send(activity_string) {
-    //                 tracing::info!("Sending new activity to {} connections", receiver_count);
-    //             } else {
-    //                 tracing::info!("There is no receiver for new activities");
-    //             }
-    //         }
-    //     });
-    //
-    //     Ok(())
-    // }
-}
+    async fn start_loop(self: Arc<Self>, mut db: Arc<DatabaseClient>) -> Result<(), AppError> {
+        let mut stream = db.start_activity_stream().await?;
+        let broadcast_sender = self.activity_broadcaster.clone();
+        let cloned_self = self.clone();
+        tokio::spawn(async move {
+            loop {
+                // We can't return from this task
+                // Best we can do is to attempt to retry if something goes wrong
+                // This should mean that the rest of the backend is also not working
 
-impl Retryable for QueryStream<Notification<Activity>> {
-    type Value = Notification<Activity>;
-    type Err = AppError;
-    async fn retry(&mut self) -> Result<Notification<Activity>, RetryAction<AppError>> {
-        let next_result = self.next().await.ok_or(RetryAction::new(
-            AppError::ActivityStreamClosed,
-            "Activity stream closed".to_string(),
-            RetryOption::Retry,
-        ))?;
+                let stream_result = match stream.next().await {
+                    Some(stream_result) => stream_result,
+                    None => {
+                        stream = db
+                            .retry_until_success(60, "Activity stream has been closed")
+                            .await;
+                        tracing::info!("Activity stream connected again.");
+                        continue;
+                    }
+                };
 
-        match next_result {
-            Err(surrealdb::Error::Db(surrealdb::error::Db::Serialization(error_message))) => {
-                return Err(RetryAction::new(
-                    AppError::SurrealDbSerialization(error_message),
-                    "Serialization error. High chance that someone deleted an activity manually"
-                        .to_string(),
-                    RetryOption::Continue,
-                ))
+                let mut new_activity = match stream_result {
+                    Ok(new_action) => new_action,
+                    Err(surrealdb::Error::Db(surrealdb::error::Db::Serialization(error))) => {
+                        tracing::debug!(
+                            "Serialization error. An activity record was manually deleted. \
+                            Details: {}",
+                            error
+                        );
+                        continue;
+                    }
+                    Err(error) => {
+                        // I don't think we need to restart the activity stream here. But just in
+                        // case. If it goes bad, I will remove it
+                        let message =
+                            format!("Unexpected error in activity stream thread: {}", error);
+                        stream = db.retry_until_success(60, &message).await;
+                        continue;
+                    }
+                };
+
+                // Logging unexpected notification actions. This could be useful for debbugging
+                // the errors that might occur with the stream especially for delete action. since
+                // the surrealdb sends undeserializable data for that, so we have to manually skip
+                // them in error handling. But that might not always be the case
+                match &new_activity.action {
+                    Action::Update => {
+                        tracing::debug!(
+                            "New activity update action with id: {}",
+                            &new_activity.data.id
+                        );
+                        continue;
+                    }
+                    Action::Delete => {
+                        tracing::debug!(
+                            "New activity delete action with id: {}",
+                            &new_activity.data.id
+                        );
+                        continue;
+                    }
+                    _ => {}
+                }
+
+                let Ok(true) = cloned_self.spam_prevention(&new_activity.data) else {
+                    continue;
+                };
+
+                if let Some(beatmap_id) = &new_activity.data.activity_type.get_beatmap_id() {
+                    let Ok(token) = cloned_self.credentials_grant_client.get_access_token() else {
+                        tracing::error!("RwLock error while trying to get access token");
+                        continue;
+                    };
+
+                    let new_beatmap_map = match cloned_self
+                        .cached_combined_requester
+                        .get_beatmaps_with_user(&[*beatmap_id], &token)
+                        .await
+                    {
+                        Ok(beatmap) => beatmap,
+                        Err(error) => {
+                            tracing::error!(
+                                "Failed to request beatmap. Activity id: {}. Error: {}",
+                                &new_activity.data.id,
+                                error
+                            );
+                            continue;
+                        }
+                    };
+
+                    let Some(new_beatmap) = new_beatmap_map.into_values().next() else {
+                        tracing::error!(
+                            "Failed to get beatmap. This should never happen! Activity id: {}",
+                            &new_activity.data.id
+                        );
+                        continue;
+                    };
+
+                    new_activity
+                        .data
+                        .activity_type
+                        .swap_beatmap_enum(BeatmapEnum::All(new_beatmap));
+                };
+
+                let Ok(activity_string) = serde_json::to_string(&new_activity.data) else {
+                    tracing::error!(
+                        "Failed to convert new activity object to json string. Activity id: {}",
+                        &new_activity.data.id
+                    );
+                    continue;
+                };
+
+                if cloned_self
+                    .add_new_activity_to_queue(new_activity.data)
+                    .is_err()
+                {
+                    tracing::error!("Failed to add new activity to the queue");
+                    continue;
+                };
+
+                if let Ok(receiver_count) = broadcast_sender.send(activity_string) {
+                    tracing::info!("Sending new activity to {} connections", receiver_count);
+                } else {
+                    tracing::info!("There is no receiver for new activities");
+                }
             }
-            Err(error) => {
-                return Err(RetryAction::new(
-                    AppError::UnhandledDb(error),
-                    "Error while getting new activity".to_string(),
-                    RetryOption::Retry,
-                ))
-            }
-            Ok(new_activity) => return Ok(new_activity),
-        };
+        });
+
+        Ok(())
     }
 }
 

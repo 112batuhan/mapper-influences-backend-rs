@@ -15,6 +15,7 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing::info;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 #[tokio::main]
 async fn main() {
@@ -22,6 +23,7 @@ async fn main() {
 
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
+        .with_span_events(FmtSpan::CLOSE)
         .init();
 
     // initializing client wrappers and state

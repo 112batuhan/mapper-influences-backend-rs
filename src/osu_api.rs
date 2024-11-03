@@ -5,19 +5,14 @@ use std::{
 };
 
 use cached::proc_macro::cached;
-use futures::{future::try_join_all, Future};
+use futures::future::try_join_all;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use tokio::{sync::Semaphore, time::sleep};
-use tracing::error;
 
-use crate::{
-    custom_cache::CustomCache,
-    error::AppError,
-    retry::{Retry, RetryAction, RetryOption, Retryable},
-};
+use crate::{custom_cache::CustomCache, error::AppError, retry::Retryable};
 
 static CLIENT_ID: LazyLock<String> =
     LazyLock::new(|| std::env::var("CLIENT_ID").expect("Missing CLIENT_ID environment variable"));
@@ -444,14 +439,8 @@ impl RequestClient {
 impl Retryable for Arc<RequestClient> {
     type Value = OsuAuthToken;
     type Err = AppError;
-    async fn retry(&mut self) -> Result<OsuAuthToken, RetryAction<AppError>> {
-        self.get_client_credentials_token().await.map_err(|err| {
-            RetryAction::new(
-                err,
-                "Failed to get client credential grant token".to_string(),
-                RetryOption::Retry,
-            )
-        })
+    async fn retry(&mut self) -> Result<OsuAuthToken, AppError> {
+        self.get_client_credentials_token().await
     }
 }
 
@@ -481,14 +470,15 @@ impl CredentialsGrantClient {
 
     fn start_loop(self: Arc<Self>) {
         let buffer_time = 120;
-        let client_clone = self.client.clone();
-        let mut retryer = Retry::new(60, client_clone);
+        let mut client_clone = self.client.clone();
 
         tokio::spawn(async move {
             loop {
                 // we can't fail this task, best we can do is to retry. If this doesn't work,
                 // then there is a good chance that the rest of the requests won't work either
-                let token = retryer.retry_until_success().await;
+                let token = client_clone
+                    .retry_until_success(60, "Failed to get client credentials grant token")
+                    .await;
 
                 let _ = self.update_token(token.access_token);
                 sleep(Duration::from_secs(token.expires_in as u64 - buffer_time)).await;
