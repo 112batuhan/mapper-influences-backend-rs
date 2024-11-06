@@ -27,7 +27,7 @@ async fn main() {
         .init();
 
     // initializing client wrappers and state
-    let request = Arc::new(RequestClient::new(10));
+    let request = Arc::new(RequestClient::new("https://osu.ppy.sh", 10));
     let client_credential_client = CredentialsGrantClient::new(request.clone())
         .await
         .expect("Failed to initialize credentials grant client");

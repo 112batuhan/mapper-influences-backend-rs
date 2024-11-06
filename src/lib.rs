@@ -41,7 +41,8 @@ impl AppState {
                 .expect("failed to initialize db connection"),
         );
 
-        let cached_combined_requester = CombinedRequester::new(request.clone());
+        let cached_combined_requester =
+            CombinedRequester::new(request.clone(), "https://osu.ppy.sh");
 
         let activity_tracker = ActivityTracker::new(
             db.clone(),

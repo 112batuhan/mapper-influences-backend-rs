@@ -260,13 +260,15 @@ impl AuthRequest {
 }
 
 pub struct RequestClient {
+    base_url: String,
     client: reqwest::Client,
     semaphore: Semaphore,
 }
 
 impl RequestClient {
-    pub fn new(concurrent_requests: usize) -> RequestClient {
+    pub fn new(base_url: &str, concurrent_requests: usize) -> RequestClient {
         RequestClient {
+            base_url: base_url.to_string(),
             client: reqwest::Client::new(),
             semaphore: Semaphore::new(concurrent_requests),
         }
@@ -317,8 +319,8 @@ impl RequestClient {
         Ok(data)
     }
     pub async fn get_token_user(&self, access_token: &str) -> Result<UserOsu, AppError> {
-        let me_url = "https://osu.ppy.sh/api/v2/me";
-        self.request(me_url, access_token).await
+        let me_url = format!("{}/api/v2/me", self.base_url);
+        self.request(&me_url, access_token).await
     }
 
     pub async fn get_beatmap_osu(
@@ -326,7 +328,7 @@ impl RequestClient {
         access_token: &str,
         beatmap_id: u32,
     ) -> Result<BeatmapOsu, AppError> {
-        let beatmap_url = format!("https://osu.ppy.sh/api/v2/beatmaps/{}", beatmap_id);
+        let beatmap_url = format!("{}/api/v2/beatmaps/{}", self.base_url, beatmap_id);
         self.request(&beatmap_url, access_token).await
     }
 
@@ -335,7 +337,7 @@ impl RequestClient {
         access_token: &str,
         beatmapset_id: u32,
     ) -> Result<BeatmapsetOsu, AppError> {
-        let beatmapset_url = format!("https://osu.ppy.sh/api/v2/beatmapsets/{}", beatmapset_id);
+        let beatmapset_url = format!("{}/api/v2/beatmapsets/{}", self.base_url, beatmapset_id);
         self.request(&beatmapset_url, access_token).await
     }
 
@@ -344,7 +346,7 @@ impl RequestClient {
         access_token: &str,
         user_id: u32,
     ) -> Result<UserOsu, AppError> {
-        let user_url = format!("https://osu.ppy.sh/api/v2/users/{}", user_id);
+        let user_url = format!("{}/api/v2/users/{}", self.base_url, user_id);
         self.request(&user_url, access_token).await
     }
 
@@ -353,10 +355,7 @@ impl RequestClient {
         access_token: &str,
         query: &str,
     ) -> Result<OsuSearchUserResponse, AppError> {
-        let search_url = format!(
-            "https://osu.ppy.sh/api/v2/search/?mode=user&query={}",
-            query
-        );
+        let search_url = format!("{}/api/v2/search/?mode=user&query={}", self.base_url, query);
         self.request(&search_url, access_token).await
     }
 
@@ -365,7 +364,7 @@ impl RequestClient {
         access_token: &str,
         query: &str,
     ) -> Result<OsuSearchMapResponse, AppError> {
-        let search_url = format!("https://osu.ppy.sh/api/v2/beatmapsets/search?{}", query);
+        let search_url = format!("{}/api/v2/beatmapsets/search?{}", self.base_url, query);
         self.request(&search_url, access_token).await
     }
 
@@ -559,15 +558,15 @@ pub struct CombinedRequester {
     beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
 }
 impl CombinedRequester {
-    pub fn new(client: Arc<RequestClient>) -> Arc<Self> {
+    pub fn new(client: Arc<RequestClient>, base_url: &str) -> Arc<Self> {
         let user_requester = Arc::new(CachedRequester::new(
             client.clone(),
-            "https://osu.ppy.sh/api/v2/users",
+            &format!("{}/api/v2/users", base_url),
             24600,
         ));
         let beatmap_requester = Arc::new(CachedRequester::new(
             client.clone(),
-            "https://osu.ppy.sh/api/v2/beatmaps",
+            &format!("{}/api/v2/beatmaps", base_url),
             86400,
         ));
         Arc::new(CombinedRequester {
