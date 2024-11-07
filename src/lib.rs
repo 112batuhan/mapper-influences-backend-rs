@@ -78,7 +78,7 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             get_with(handlers::osu_api::osu_user_search, |op| op.tag("Search")),
         )
         .api_route(
-            "/influence",
+            "/influence/:influenced_to",
             post_with(handlers::influence::add_influence, |op| op.tag("Influence")),
         )
         .api_route(

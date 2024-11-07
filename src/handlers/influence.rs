@@ -23,24 +23,23 @@ pub struct Description {
     description: String,
 }
 
-// TODO: add a return type for this
 pub async fn add_influence(
     Path(influenced_to): Path<u32>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<(), AppError> {
+) -> Result<Json<Influence>, AppError> {
     let target_user = state
         .request
         .get_user_osu(&auth_data.osu_token, influenced_to)
         .await?;
 
-    try_join!(
+    let (_, influence) = try_join!(
         state.db.upsert_user(target_user, false),
         state
             .db
             .add_influence_relation(auth_data.user_id, influenced_to)
     )?;
-    Ok(())
+    Ok(Json(influence))
 }
 
 pub async fn delete_influence(
@@ -143,6 +142,7 @@ pub async fn get_user_influences(
     let beatmaps_to_request: Vec<u32> = influences
         .iter()
         .flat_map(|influence| &influence.beatmaps)
+        .flatten()
         .map(|maps| maps.get_id())
         .unique()
         .collect();
@@ -158,6 +158,7 @@ pub async fn get_user_influences(
         let new_beatmaps = influence
             .beatmaps
             .iter()
+            .flatten()
             .filter_map(|beatmap| {
                 // it's not ok to use remove here
                 // there could be beatmaps used more than once
@@ -165,7 +166,7 @@ pub async fn get_user_influences(
                 Some(BeatmapEnum::All(beatmap.clone()))
             })
             .collect();
-        influence.beatmaps = new_beatmaps;
+        influence.beatmaps = Some(new_beatmaps);
     });
 
     Ok(Json(influences))

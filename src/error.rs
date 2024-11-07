@@ -5,6 +5,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug, OperationIo)]
 pub enum AppError {
+    #[error("Failed to create influence")]
+    FailedInfluence,
+
     #[error("Missing user {0}")]
     MissingUser(u32),
 
@@ -64,6 +67,7 @@ impl IntoResponse for AppError {
         });
         let status_code = match self {
             AppError::UnhandledDb(_)
+            | AppError::FailedInfluence
             | AppError::Reqwest(_)
             | AppError::Jwt(_)
             | AppError::Mutex

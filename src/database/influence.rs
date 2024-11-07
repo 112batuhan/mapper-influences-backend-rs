@@ -10,7 +10,8 @@ pub struct Influence {
     pub user: UserSmall,
     pub influence_type: u8,
     pub description: String,
-    pub beatmaps: Vec<BeatmapEnum>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub beatmaps: Option<Vec<BeatmapEnum>>,
 }
 
 impl DatabaseClient {
@@ -18,13 +19,32 @@ impl DatabaseClient {
         &self,
         user_id: u32,
         target_user_id: u32,
-    ) -> Result<(), AppError> {
-        self.db
-            .query("RELATE $user ->influenced_by-> $target")
+    ) -> Result<Influence, AppError> {
+        let influence: Option<Influence> = self
+            .db
+            .query(
+                "
+                RELATE $user->influenced_by->$target 
+                RETURN 
+                    meta::id(in) as user.id,
+                    in.username as user.username,
+                    in.avatar_url as user.avatar_url,
+                    in.country_code as user.country_code,
+                    in.country_name as user.country_name,
+                    in.groups as user.groups,
+                    in.ranked_and_approved_beatmapset_count 
+                        + in.guest_beatmapset_count as user.ranked_maps,
+                    count(in<-influenced_by) as user.mentions,
+                    beatmaps,
+                    description,
+                    influence_type
+                ",
+            )
             .bind(("user", numerical_thing("user", user_id)))
             .bind(("target", numerical_thing("user", target_user_id)))
-            .await?;
-        Ok(())
+            .await?
+            .take(0)?;
+        influence.ok_or(AppError::FailedInfluence)
     }
 
     pub async fn remove_influence_relation(
@@ -160,8 +180,7 @@ impl DatabaseClient {
                         + in.guest_beatmapset_count as user.ranked_maps,
                     COUNT(<-user<-influenced_by) as user.mentions,
                     influence_type,
-                    description,
-                    beatmaps
+                    description
                 FROM $thing<-influenced_by 
                 ORDER BY user.mentions DESC
                 START $start
