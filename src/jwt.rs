@@ -1,9 +1,11 @@
 use jwt_simple::{
     algorithms::{HS256Key, MACLike},
     claims::Claims,
-    reexports::{anyhow::Ok, coarsetime::Duration},
+    reexports::coarsetime::Duration,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::error::AppError;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AuthData {
@@ -30,7 +32,7 @@ impl JwtUtil {
         username: String,
         osu_token: String,
         duration: u32,
-    ) -> Result<String, jwt_simple::Error> {
+    ) -> Result<String, AppError> {
         let additional_data = AuthData {
             osu_token,
             user_id: id,
@@ -42,7 +44,7 @@ impl JwtUtil {
         Ok(token)
     }
 
-    pub fn verify_jwt(&self, token: &str) -> Result<AuthData, jwt_simple::Error> {
+    pub fn verify_jwt(&self, token: &str) -> Result<AuthData, AppError> {
         let claims = self.key.verify_token::<AuthData>(token, None)?;
         Ok(claims.custom)
     }

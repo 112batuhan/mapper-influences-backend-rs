@@ -17,6 +17,9 @@ pub enum AppError {
     #[error("Jwt verification error")]
     JwtVerification,
 
+    #[error("Wrong admin password")]
+    WrongAdminPassword,
+
     #[error("Mutex error")]
     Mutex,
 
@@ -77,7 +80,9 @@ impl IntoResponse for AppError {
             | AppError::ActivityStreamClosed
             | AppError::SurrealDbSerialization(_)
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::MissingTokenCookie | AppError::JwtVerification => StatusCode::UNAUTHORIZED,
+            AppError::MissingTokenCookie
+            | AppError::JwtVerification
+            | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
             AppError::MissingLayerJson => StatusCode::UNPROCESSABLE_ENTITY,
 
             AppError::MissingUser(_) | Self::NonExistingMap(_) => StatusCode::NOT_FOUND,

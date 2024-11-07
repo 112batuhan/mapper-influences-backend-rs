@@ -1,8 +1,9 @@
 use std::sync::{Arc, LazyLock};
 
 use axum::{
-    extract::{Query, Request, State},
+    extract::{Path, Query, Request, State},
     response::{IntoResponse, Redirect, Response},
+    Json,
 };
 use axum_extra::extract::CookieJar;
 use futures::try_join;
@@ -17,10 +18,20 @@ static POST_LOGIN_REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
     std::env::var("POST_LOGIN_REDIRECT_URI")
         .expect("Missing POST_LOGIN_REDIRECT_URI environment variable")
 });
+static ADMIN_PASSWORD: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("ADMIN_PASSWORD").expect("Missing ADMIN_PASSWORD environment variable")
+});
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Deserialize, JsonSchema)]
 pub struct AuthQuery {
     code: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct AdminLogin {
+    password: String,
+    /// Id of their osu account. This is so that they can act as their own account
+    id: u32,
 }
 
 pub async fn osu_oauth2_redirect(
@@ -87,4 +98,30 @@ pub async fn check_jwt_token(
 
     request.extensions_mut().insert(claims);
     Ok(next.run(request).await)
+}
+
+/// Easy way to get a premade jwt with internal client credential grant method in it
+///
+/// This is to make the API testing easier by skipping oauth2 process
+pub async fn admin_login(
+    State(state): State<Arc<AppState>>,
+    Json(admin_login): Json<AdminLogin>,
+) -> Result<String, AppError> {
+    if *ADMIN_PASSWORD != admin_login.password {
+        return Err(AppError::WrongAdminPassword);
+    }
+
+    let client_credential_token = state.credentials_grant_client.get_access_token()?;
+    let osu_user = state
+        .request
+        .get_user_osu(&client_credential_token, admin_login.id)
+        .await?;
+
+    // Token can expire earlier than specified here. If that's the case, get a new one.
+    state.jwt.create_jwt(
+        osu_user.id,
+        osu_user.username.clone(),
+        client_credential_token,
+        84600,
+    )
 }

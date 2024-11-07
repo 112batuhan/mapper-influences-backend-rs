@@ -167,6 +167,10 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             get_with(handlers::auth::logout, |op| op.tag("Auth")),
         )
         .api_route(
+            "/oauth/admin",
+            post_with(handlers::auth::admin_login, |op| op.tag("Auth")),
+        )
+        .api_route(
             "/leaderboard/user",
             get_with(handlers::leaderboard::get_user_leaderboard, |op| {
                 op.tag("Leaderboard")
