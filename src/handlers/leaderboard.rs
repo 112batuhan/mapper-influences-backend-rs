@@ -139,7 +139,7 @@ pub async fn get_beatmap_leaderboard(
         .map(|entry| entry.beatmap.get_id())
         .collect();
 
-    let access_token = state.credentials_grant_client.get_access_token()?;
+    let access_token = state.credentials_grant_client.get_access_token().await?;
     let mut beatmaps = state
         .cached_combined_requester
         .clone()

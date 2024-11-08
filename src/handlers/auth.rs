@@ -1,7 +1,7 @@
 use std::sync::{Arc, LazyLock};
 
 use axum::{
-    extract::{Path, Query, Request, State},
+    extract::{Query, Request, State},
     response::{IntoResponse, Redirect, Response},
     Json,
 };
@@ -111,7 +111,7 @@ pub async fn admin_login(
         return Err(AppError::WrongAdminPassword);
     }
 
-    let client_credential_token = state.credentials_grant_client.get_access_token()?;
+    let client_credential_token = state.credentials_grant_client.get_access_token().await?;
     let osu_user = state
         .request
         .get_user_osu(&client_credential_token, admin_login.id)

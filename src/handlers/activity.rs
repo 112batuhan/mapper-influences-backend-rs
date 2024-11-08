@@ -313,7 +313,11 @@ impl ActivityTracker {
                 .collect()
         };
 
-        let token = self.credentials_grant_client.get_access_token()?;
+        if beatmaps_to_request.is_empty() {
+            return Ok(());
+        }
+
+        let token = self.credentials_grant_client.get_access_token().await?;
         let beatmaps = self
             .cached_combined_requester
             .clone()
@@ -403,9 +407,13 @@ impl ActivityTracker {
                 let Ok(true) = cloned_self.spam_prevention(&new_activity.data) else {
                     continue;
                 };
-
                 if let Some(beatmap_id) = &new_activity.data.activity_type.get_beatmap_id() {
-                    let Ok(token) = cloned_self.credentials_grant_client.get_access_token() else {
+                    let Ok(token) = cloned_self
+                        .credentials_grant_client
+                        .clone()
+                        .get_access_token()
+                        .await
+                    else {
                         tracing::error!("RwLock error while trying to get access token");
                         continue;
                     };
