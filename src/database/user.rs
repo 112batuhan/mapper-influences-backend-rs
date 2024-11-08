@@ -27,6 +27,8 @@ pub struct User {
     pub graveyard_beatmapset_count: u32,
     pub pending_beatmapset_count: u32,
     pub beatmaps: Vec<BeatmapEnum>,
+    /// This will have a number if the data is coming from database.
+    /// If the data comes from osu! API, then this will be null
     pub mentions: Option<u32>,
 }
 
@@ -63,6 +65,8 @@ pub struct UserSmall {
     pub country_code: String,
     pub country_name: String,
     pub ranked_maps: u32,
+    /// This will have a number if the data is coming from database.
+    /// If the data comes from osu! API, then this will be null
     pub mentions: Option<u32>,
 }
 

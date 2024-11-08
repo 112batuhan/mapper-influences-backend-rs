@@ -205,7 +205,12 @@ impl OsuBeatmapSmall {
         }
     }
 }
-
+/// Despite having two variants for beatmaps, the API will always return the full beatmap
+/// objects instead of integer id's.
+///
+/// Because of technical limitations (maybe can be manually changed) I can't discard integer
+/// variant
+/// from the generated documentation. So beware!
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum BeatmapEnum {
