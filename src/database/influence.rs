@@ -15,6 +15,23 @@ pub struct Influence {
 }
 
 impl DatabaseClient {
+    fn single_influence_return_string(&self) -> &str {
+        "
+        meta::id(in) as user.id,
+        in.username as user.username,
+        in.avatar_url as user.avatar_url,
+        in.country_code as user.country_code,
+        in.country_name as user.country_name,
+        in.groups as user.groups,
+        in.ranked_and_approved_beatmapset_count 
+            + in.guest_beatmapset_count as user.ranked_maps,
+        count(in<-influenced_by) as user.mentions,
+        beatmaps,
+        description,
+        influence_type
+        "
+    }
+
     pub async fn add_influence_relation(
         &self,
         user_id: u32,
@@ -22,42 +39,36 @@ impl DatabaseClient {
     ) -> Result<Influence, AppError> {
         let influence: Option<Influence> = self
             .db
-            .query(
-                "
-                RELATE $user->influenced_by->$target 
-                RETURN 
-                    meta::id(in) as user.id,
-                    in.username as user.username,
-                    in.avatar_url as user.avatar_url,
-                    in.country_code as user.country_code,
-                    in.country_name as user.country_name,
-                    in.groups as user.groups,
-                    in.ranked_and_approved_beatmapset_count 
-                        + in.guest_beatmapset_count as user.ranked_maps,
-                    count(in<-influenced_by) as user.mentions,
-                    beatmaps,
-                    description,
-                    influence_type
-                ",
-            )
+            .query(format!(
+                "RELATE $user->influenced_by->$target RETURN {}",
+                self.single_influence_return_string()
+            ))
             .bind(("user", numerical_thing("user", user_id)))
             .bind(("target", numerical_thing("user", target_user_id)))
             .await?
             .take(0)?;
-        influence.ok_or(AppError::FailedInfluence)
+        influence.ok_or(AppError::MissingInfluence)
     }
 
     pub async fn remove_influence_relation(
         &self,
         own_user_id: u32,
         target_user_id: u32,
-    ) -> Result<(), AppError> {
-        self.db
-            .query("DELETE $own_user->influenced_by WHERE out=$target_user;")
+    ) -> Result<Influence, AppError> {
+        let influence: Option<Influence> = self
+            .db
+            .query(format!(
+                "
+                LET $deleted = DELETE ONLY $own_user->influenced_by WHERE out=$target_user RETURN BEFORE;
+                SELECT {} FROM $deleted;
+                ",
+            self.single_influence_return_string()
+        ))
             .bind(("own_user", numerical_thing("user", own_user_id)))
             .bind(("target_user", numerical_thing("user", target_user_id)))
-            .await?;
-        Ok(())
+            .await?
+            .take(1)?;
+        influence.ok_or(AppError::MissingInfluence)
     }
 
     pub async fn add_beatmap_to_influence(
@@ -65,14 +76,22 @@ impl DatabaseClient {
         own_user_id: u32,
         target_user_id: u32,
         beatmap_id: u32,
-    ) -> Result<(), AppError> {
-        self.db
-            .query("UPDATE $own_user->influenced_by SET beatmaps += $beatmap_id WHERE out=$target_user;")
+    ) -> Result<Influence, AppError> {
+        let influence: Option<Influence> = self
+            .db
+            .query(format!(
+                "
+                UPDATE $own_user->influenced_by SET beatmaps += $beatmap_id WHERE out=$target_user 
+                RETURN {}
+                ",
+                self.single_influence_return_string()
+            ))
             .bind(("own_user", numerical_thing("user", own_user_id)))
             .bind(("target_user", numerical_thing("user", target_user_id)))
             .bind(("beatmap_id", beatmap_id))
-            .await?;
-        Ok(())
+            .await?
+            .take(0)?;
+        influence.ok_or(AppError::MissingInfluence)
     }
 
     pub async fn remove_beatmap_from_influence(
@@ -80,14 +99,22 @@ impl DatabaseClient {
         own_user_id: u32,
         target_user_id: u32,
         beatmap_id: u32,
-    ) -> Result<(), AppError> {
-        self.db
-            .query("UPDATE $own_user->influenced_by SET beatmaps -= $beatmap_id WHERE out=$target_user;")
+    ) -> Result<Influence, AppError> {
+        let influence: Option<Influence> = self
+            .db
+            .query(format!(
+                "
+                UPDATE $own_user->influenced_by SET beatmaps -= $beatmap_id WHERE out=$target_user
+                RETURN {}
+                ",
+                self.single_influence_return_string()
+            ))
             .bind(("own_user", numerical_thing("user", own_user_id)))
             .bind(("target_user", numerical_thing("user", target_user_id)))
             .bind(("beatmap_id", beatmap_id))
-            .await?;
-        Ok(())
+            .await?
+            .take(0)?;
+        influence.ok_or(AppError::MissingInfluence)
     }
 
     pub async fn update_influence_type(
@@ -95,14 +122,23 @@ impl DatabaseClient {
         own_user_id: u32,
         target_user_id: u32,
         influence_type: u8,
-    ) -> Result<(), AppError> {
-        self.db
-            .query("UPDATE $own_user->influenced_by SET influence_type = $influence_type WHERE out=$target_user;")
+    ) -> Result<Influence, AppError> {
+        let influence: Option<Influence> = self
+            .db
+            .query(format!(
+                "
+                UPDATE $own_user->influenced_by 
+                SET influence_type = $influence_type WHERE out=$target_user
+                RETURN {}
+                ",
+                self.single_influence_return_string()
+            ))
             .bind(("own_user", numerical_thing("user", own_user_id)))
             .bind(("target_user", numerical_thing("user", target_user_id)))
             .bind(("influence_type", influence_type))
-            .await?;
-        Ok(())
+            .await?
+            .take(0)?;
+        influence.ok_or(AppError::MissingInfluence)
     }
 
     pub async fn update_influence_description(
@@ -110,14 +146,23 @@ impl DatabaseClient {
         own_user_id: u32,
         target_user_id: u32,
         description: String,
-    ) -> Result<(), AppError> {
-        self.db
-            .query("UPDATE $own_user->influenced_by SET description=$description WHERE out=$target_user;")
+    ) -> Result<Influence, AppError> {
+        let influence: Option<Influence> = self
+            .db
+            .query(format!(
+                "
+                UPDATE $own_user->influenced_by
+                SET description=$description WHERE out=$target_user
+                RETURN {}
+                ",
+                self.single_influence_return_string()
+            ))
             .bind(("own_user", numerical_thing("user", own_user_id)))
             .bind(("target_user", numerical_thing("user", target_user_id)))
             .bind(("description", description.to_string()))
-            .await?;
-        Ok(())
+            .await?
+            .take(0)?;
+        influence.ok_or(AppError::MissingInfluence)
     }
 
     pub async fn get_influences(

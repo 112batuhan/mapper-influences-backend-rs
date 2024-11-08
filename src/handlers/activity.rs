@@ -342,7 +342,9 @@ impl ActivityTracker {
     }
 
     async fn start_loop(self: Arc<Self>, mut db: Arc<DatabaseClient>) -> Result<(), AppError> {
-        let mut stream = db.start_activity_stream().await?;
+        let mut stream = db
+            .retry_until_success(60, "Failed to start activity stream")
+            .await;
         let broadcast_sender = self.activity_broadcaster.clone();
         let cloned_self = self.clone();
         tokio::spawn(async move {

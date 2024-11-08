@@ -151,35 +151,78 @@ impl DatabaseClient {
         Ok(())
     }
 
-    pub async fn update_bio(&self, user_id: u32, bio: String) -> Result<(), AppError> {
-        self.db
-            .query("UPDATE $thing SET bio = $bio")
-            .bind(("thing", numerical_thing("user", user_id)))
-            .bind(("bio", bio))
-            .await?;
-        Ok(())
+    fn single_user_return_string(&self) -> &str {
+        "
+        meta::id(id) as id,
+        username,
+        avatar_url,
+        bio,
+        beatmaps,
+        country_code,
+        country_name,
+        groups,
+        previous_usernames,
+        ranked_and_approved_beatmapset_count,
+        ranked_beatmapset_count,
+        nominated_beatmapset_count,
+        guest_beatmapset_count,
+        loved_beatmapset_count,
+        graveyard_beatmapset_count,
+        pending_beatmapset_count,
+        count(<-influenced_by) as mentions
+        "
     }
 
-    pub async fn add_beatmap_to_user(&self, user_id: u32, beatmap_id: u32) -> Result<(), AppError> {
-        self.db
-            .query("UPDATE $thing SET beatmaps += $beatmap_id")
+    pub async fn update_bio(&self, user_id: u32, bio: String) -> Result<User, AppError> {
+        let user: Option<User> = self
+            .db
+            .query(format!(
+                "UPDATE $thing SET bio = $bio RETURN {}",
+                self.single_user_return_string()
+            ))
+            .bind(("thing", numerical_thing("user", user_id)))
+            .bind(("bio", bio))
+            .await?
+            .take(0)?;
+
+        user.ok_or(AppError::MissingUser(user_id))
+    }
+
+    pub async fn add_beatmap_to_user(
+        &self,
+        user_id: u32,
+        beatmap_id: u32,
+    ) -> Result<User, AppError> {
+        let user: Option<User> = self
+            .db
+            .query(format!(
+                "UPDATE $thing SET beatmaps += $beatmap_id RETURN {}",
+                self.single_user_return_string()
+            ))
             .bind(("thing", numerical_thing("user", user_id)))
             .bind(("beatmap_id", beatmap_id))
-            .await?;
-        Ok(())
+            .await?
+            .take(0)?;
+
+        user.ok_or(AppError::MissingUser(user_id))
     }
 
     pub async fn remove_beatmap_from_user(
         &self,
         user_id: u32,
         beatmap_id: u32,
-    ) -> Result<(), AppError> {
-        self.db
-            .query("UPDATE $thing SET beatmaps -= $beatmap_id")
+    ) -> Result<User, AppError> {
+        let user: Option<User> = self
+            .db
+            .query(format!(
+                "UPDATE $thing SET beatmaps -= $beatmap_id RETURN {}",
+                self.single_user_return_string()
+            ))
             .bind(("thing", numerical_thing("user", user_id)))
             .bind(("beatmap_id", beatmap_id))
-            .await?;
-        Ok(())
+            .await?
+            .take(0)?;
+        user.ok_or(AppError::MissingUser(user_id))
     }
 
     pub async fn set_influence_order(&self, user_id: u32, order: &[u32]) -> Result<(), AppError> {
@@ -206,36 +249,17 @@ impl DatabaseClient {
     }
 
     pub async fn get_user_details(&self, user_id: u32) -> Result<User, AppError> {
-        let user_db: Option<User> = self
+        let user: Option<User> = self
             .db
-            .query(
-                "
-                SELECT 
-                    meta::id(id) as id,
-                    username,
-                    avatar_url,
-                    bio,
-                    beatmaps,
-                    country_code,
-                    country_name,
-                    groups,
-                    previous_usernames,
-                    ranked_and_approved_beatmapset_count,
-                    ranked_beatmapset_count,
-                    nominated_beatmapset_count,
-                    guest_beatmapset_count,
-                    loved_beatmapset_count,
-                    graveyard_beatmapset_count,
-                    pending_beatmapset_count,
-                    count(<-influenced_by) as mentions
-                FROM ONLY $thing;
-                ",
-            )
+            .query(format!(
+                "SELECT {} FROM ONLY $thing;",
+                self.single_user_return_string()
+            ))
             .bind(("thing", numerical_thing("user", user_id)))
             .await?
             .take(0)?;
 
-        user_db.ok_or(AppError::MissingUser(user_id))
+        user.ok_or(AppError::MissingUser(user_id))
     }
 
     pub async fn get_multiple_user_details(
@@ -246,7 +270,7 @@ impl DatabaseClient {
             .iter()
             .map(|id| numerical_thing("user", *id))
             .collect();
-        let users_db: Vec<UserSmall> = self
+        let users: Vec<UserSmall> = self
             .db
             .query(
                 "
@@ -266,6 +290,6 @@ impl DatabaseClient {
             .bind(("things", things))
             .await?
             .take(0)?;
-        Ok(users_db)
+        Ok(users)
     }
 }

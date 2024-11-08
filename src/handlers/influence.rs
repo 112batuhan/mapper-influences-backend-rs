@@ -16,7 +16,7 @@ use crate::{
     AppState,
 };
 
-use super::PaginationQuery;
+use super::{swap_beatmaps, PaginationQuery};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct Description {
@@ -33,6 +33,8 @@ pub async fn add_influence(
         .get_user_osu(&auth_data.osu_token, influenced_to)
         .await?;
 
+    // We don't need to swap beatmaps here
+    // There should be no maps in fresh influence relations
     let (_, influence) = try_join!(
         state.db.upsert_user(target_user, false),
         state
@@ -46,20 +48,27 @@ pub async fn delete_influence(
     Path(influenced_to): Path<u32>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<(), AppError> {
-    state
+) -> Result<Json<Influence>, AppError> {
+    let mut influence = state
         .db
         .remove_influence_relation(auth_data.user_id, influenced_to)
         .await?;
-    Ok(())
+    if let Some(beatmaps) = influence.beatmaps.as_mut() {
+        swap_beatmaps(
+            state.cached_combined_requester.clone(),
+            &auth_data.osu_token,
+            beatmaps,
+        )
+        .await?;
+    }
+    Ok(Json(influence))
 }
 
 pub async fn add_influence_beatmap(
-    Path(beatmap_id): Path<u32>,
-    Path(influenced_to): Path<u32>,
+    Path((influenced_to, beatmap_id)): Path<(u32, u32)>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<(), AppError> {
+) -> Result<Json<Influence>, AppError> {
     let beatmap = state
         .cached_combined_requester
         .clone()
@@ -70,24 +79,42 @@ pub async fn add_influence_beatmap(
         return Err(AppError::NonExistingMap(beatmap_id));
     }
 
-    state
+    let mut influence = state
         .db
         .add_beatmap_to_influence(auth_data.user_id, influenced_to, beatmap_id)
         .await?;
-    Ok(())
+
+    if let Some(beatmaps) = influence.beatmaps.as_mut() {
+        swap_beatmaps(
+            state.cached_combined_requester.clone(),
+            &auth_data.osu_token,
+            beatmaps,
+        )
+        .await?;
+    }
+
+    Ok(Json(influence))
 }
 
 pub async fn remove_influence_beatmap(
-    Path(beatmap_id): Path<u32>,
-    Path(influenced_to): Path<u32>,
+    Path((influenced_to, beatmap_id)): Path<(u32, u32)>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<(), AppError> {
-    state
+) -> Result<Json<Influence>, AppError> {
+    let mut influence = state
         .db
         .remove_beatmap_from_influence(auth_data.user_id, influenced_to, beatmap_id)
         .await?;
-    Ok(())
+
+    if let Some(beatmaps) = influence.beatmaps.as_mut() {
+        swap_beatmaps(
+            state.cached_combined_requester.clone(),
+            &auth_data.osu_token,
+            beatmaps,
+        )
+        .await?;
+    }
+    Ok(Json(influence))
 }
 
 pub async fn update_influence_description(
@@ -95,25 +122,43 @@ pub async fn update_influence_description(
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
     Json(description): Json<Description>,
-) -> Result<(), AppError> {
-    state
+) -> Result<Json<Influence>, AppError> {
+    let mut influence = state
         .db
         .update_influence_description(auth_data.user_id, influenced_to, description.description)
         .await?;
-    Ok(())
+
+    if let Some(beatmaps) = influence.beatmaps.as_mut() {
+        swap_beatmaps(
+            state.cached_combined_requester.clone(),
+            &auth_data.osu_token,
+            beatmaps,
+        )
+        .await?;
+    }
+    Ok(Json(influence))
 }
 
 pub async fn update_influence_type(
-    Path(influenced_to): Path<u32>,
-    Path(type_id): Path<u8>,
+    Path((influenced_to, type_id)): Path<(u32, u8)>,
+
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<(), AppError> {
-    state
+) -> Result<Json<Influence>, AppError> {
+    let mut influence = state
         .db
         .update_influence_type(auth_data.user_id, influenced_to, type_id)
         .await?;
-    Ok(())
+
+    if let Some(beatmaps) = influence.beatmaps.as_mut() {
+        swap_beatmaps(
+            state.cached_combined_requester.clone(),
+            &auth_data.osu_token,
+            beatmaps,
+        )
+        .await?;
+    }
+    Ok(Json(influence))
 }
 
 pub async fn get_user_mentions(
