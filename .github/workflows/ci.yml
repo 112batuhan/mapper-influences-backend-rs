@@ -6,7 +6,7 @@ on:
 jobs:
   # there is no tests right now. I will enable this later along with configuration
   # test:
-  #   name: cargo test
+  #   name: test
   #   runs-on: ubuntu-latest
   #   steps:
   #     - uses: actions/checkout@v4
@@ -14,7 +14,7 @@ jobs:
   #     - run: cargo test --all-features
 
   formatting:
-    name: cargo fmt
+    name: fmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
         uses: actions-rust-lang/rustfmt@v1
 
   clippy:
-    name: cargo clippy 
+    name: clippy 
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
         run: cargo clippy --all-features -- -D warnings
 
   udeps:
-    name: cargo udeps
+    name: udeps
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
         run: cargo +nightly udeps --all-targets
 
   taplo:
-    name: cargo udeps
+    name: taplo 
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
