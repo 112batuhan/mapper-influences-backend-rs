@@ -20,7 +20,6 @@ cached = { version = "0.53.1", features = ["async"] }
 chrono = "0.4.38"
 dotenvy = "0.15.7"
 futures = "0.3.31"
-futures-retry = "0.6.0"
 hashlink = { version = "0.9.1", features = ["serde", "serde_impl"] }
 http = "1.1.0"
 itertools = "0.13.0"
