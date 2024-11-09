@@ -40,3 +40,8 @@ It's a script to insert MongoDB data into SurrealDB. Don't use in production. I'
 
 ### How to run tests
 There isn't any tests yet so WIP 
+
+## How to satisfy taplo (what even is it?)
+[Taplo](https://taplo.tamasfe.dev/) is a toml file toolkit. You can format and check formatting of toml files. It even has an LSP!
+
+For basic usage, run `cargo install taplo-cli --locked` and run `taplo fmt` to format the toml files.

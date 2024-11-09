@@ -58,8 +58,4 @@ jobs:
         run: cargo install taplo-cli --locked
       - name: Check Cargo.toml formatting
         run: |
-          taplo fmt Cargo.toml --check \
-          --option reorder_arrays=true \
-          --option reorder_keys=true \
-          --option indent_string="    " \
-          -
+          taplo fmt --check 
