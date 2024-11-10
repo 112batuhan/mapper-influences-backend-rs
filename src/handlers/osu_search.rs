@@ -14,7 +14,7 @@ use crate::{
     database::user::UserSmall,
     error::AppError,
     jwt::AuthData,
-    osu_api::{cached_osu_user_request, BaseBeatmapset, BeatmapOsu},
+    osu_api::{cached_osu_user_request, BaseBeatmapset, BeatmapOsu, OsuMultipleUser},
     AppState,
 };
 
@@ -31,11 +31,27 @@ pub struct SearchBeatmapset {
 }
 
 impl SearchBeatmapset {
+    /// This function combines [`BaseBeatmapset`] and [`OsuMultipleUser`].
+    ///
+    /// If user is not returned from the query, we fallback to beatmapset user.
+    /// This usually happens if the original mapper is banned. If the beatmapset submitter is also
+    /// banned, we don't have to worry about the avatar_url as osu automatically falls back to
+    /// guest picture.
     pub fn from_base_beapmapset_and_user(
         api_set: BaseBeatmapset,
-        user_name: String,
-        user_avatar_url: String,
+        user_multiple: Option<OsuMultipleUser>,
     ) -> Self {
+        let user_name: String;
+        let user_avatar_url: String;
+
+        if let Some(user_multiple) = user_multiple {
+            user_name = user_multiple.username;
+            user_avatar_url = user_multiple.avatar_url;
+        } else {
+            user_name = api_set.creator;
+            user_avatar_url = format!("https://a.ppy.sh/{}?", api_set.user_id);
+        }
+
         SearchBeatmapset {
             id: api_set.id,
             beatmaps: api_set.beatmaps,
@@ -131,13 +147,9 @@ pub async fn osu_beatmap_search(
     let beatmap_search = beatmap_search_osu
         .beatmapsets
         .into_iter()
-        .filter_map(|beatmapset| {
-            let user = user_map.get(&beatmapset.user_id)?;
-            Some(SearchBeatmapset::from_base_beapmapset_and_user(
-                beatmapset,
-                user.username.clone(),
-                user.avatar_url.clone(),
-            ))
+        .map(|beatmapset| {
+            let user = user_map.get(&beatmapset.user_id).cloned();
+            SearchBeatmapset::from_base_beapmapset_and_user(beatmapset, user)
         })
         .collect();
 
