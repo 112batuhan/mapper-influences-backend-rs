@@ -13,7 +13,7 @@ pub mod activity;
 pub mod auth;
 pub mod influence;
 pub mod leaderboard;
-pub mod osu_api;
+pub mod osu_search;
 pub mod user;
 
 #[derive(Debug, Deserialize, JsonSchema)]

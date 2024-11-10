@@ -71,11 +71,13 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
     ApiRouter::new()
         .api_route(
             "/search/map",
-            get_with(handlers::osu_api::osu_beatmap_search, |op| op.tag("Search")),
+            get_with(handlers::osu_search::osu_beatmap_search, |op| {
+                op.tag("Search")
+            }),
         )
         .api_route(
             "/search/user/:query",
-            get_with(handlers::osu_api::osu_user_search, |op| op.tag("Search")),
+            get_with(handlers::osu_search::osu_user_search, |op| op.tag("Search")),
         )
         .api_route(
             "/influence/:influenced_to",

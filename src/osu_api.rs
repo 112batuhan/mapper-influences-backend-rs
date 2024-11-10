@@ -106,12 +106,6 @@ pub struct BeatmapOsu {
     pub version: String,
 }
 
-impl GetID for BeatmapOsu {
-    fn get_id(&self) -> u32 {
-        self.id
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct BeatmapsetRelatedUser {
     pub username: String,
@@ -692,6 +686,18 @@ impl CombinedRequester {
             .get_multiple_osu(ids, access_token)
             .await?;
         Ok(beatmap_map)
+    }
+    pub async fn get_users_only(
+        &self,
+        ids: &[u32],
+        access_token: &str,
+    ) -> Result<HashMap<u32, OsuMultipleUser>, AppError> {
+        let user_map = self
+            .user_requester
+            .clone()
+            .get_multiple_osu(ids, access_token)
+            .await?;
+        Ok(user_map)
     }
 }
 

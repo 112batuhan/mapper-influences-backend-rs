@@ -38,8 +38,6 @@ impl<K: Hash + Eq + Clone, V: Clone> CustomCache<K, V> {
         }
     }
 
-    // Maybe we could get away without cloning the values
-    // But I don't have infinite time
     pub fn get_multiple(&mut self, keys: &[K]) -> MultipleCacheResults<K, V> {
         self.discard_expired();
 

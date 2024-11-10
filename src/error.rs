@@ -30,6 +30,9 @@ pub enum AppError {
     #[error("Value Missing")]
     MissingLayerJson,
 
+    #[error("Bad URI {0}")]
+    BadUri(String),
+
     #[error("Activity stream closed")]
     ActivityStreamClosed,
 
@@ -74,6 +77,7 @@ impl IntoResponse for AppError {
             | AppError::Jwt(_)
             | AppError::Mutex
             | AppError::RwLock
+            | AppError::BadUri(_)
             | AppError::SerdeJson(_)
             | AppError::TaskJoin(_)
             | AppError::ActivityStreamClosed
