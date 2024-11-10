@@ -4,7 +4,7 @@
 
 [db]
     address = "ws://localhost:8100"
-    username = "root"
+    username = "backend"
     password = "password"
     ns = "test"
     db = "test"

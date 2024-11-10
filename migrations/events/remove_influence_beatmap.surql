@@ -1,4 +1,9 @@
-DEFINE EVENT OVERWRITE remove_influence_beatmap ON TABLE influenced_by WHEN $event == "UPDATE" AND array::len($before.beatmaps) > array::len($after.beatmaps) THEN (
+DEFINE EVENT OVERWRITE remove_influence_beatmap ON TABLE influenced_by
+WHEN
+    $session.tk.ID == "backend"
+    AND $event == "UPDATE"
+    AND array::len($before.beatmaps) > array::len($after.beatmaps)
+THEN (
     CREATE activity 
     SET user = $after.in, 
         created_at = time::now(),

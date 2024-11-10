@@ -17,15 +17,15 @@ pub struct Influence {
 impl DatabaseClient {
     fn single_influence_return_string(&self) -> &str {
         "
-        meta::id(in) as user.id,
-        in.username as user.username,
-        in.avatar_url as user.avatar_url,
-        in.country_code as user.country_code,
-        in.country_name as user.country_name,
-        in.groups as user.groups,
-        in.ranked_and_approved_beatmapset_count 
-            + in.guest_beatmapset_count as user.ranked_maps,
-        count(in<-influenced_by) as user.mentions,
+        meta::id(out) as user.id,
+        out.username as user.username,
+        out.avatar_url as user.avatar_url,
+        out.country_code as user.country_code,
+        out.country_name as user.country_name,
+        out.groups as user.groups,
+        out.ranked_and_approved_beatmapset_count 
+            + out.guest_beatmapset_count as user.ranked_maps,
+        count(out<-influenced_by) as user.mentions,
         beatmaps,
         description,
         influence_type

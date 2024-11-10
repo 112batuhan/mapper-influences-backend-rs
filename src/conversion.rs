@@ -187,7 +187,7 @@ async fn main() {
     // WARN: BE EXTREMELY CAUTIOUS WITH THIS!!!!
     // YOU MIGHT ACCIDENTALLY DELETE PROD DATA
     // Deleting ADD_INFLUENCE events after adding data.
-    db.get_inner_ref().query("delete activity").await.unwrap();
+    //db.get_inner_ref().query("delete activity").await.unwrap();
 
     let mut handlers = Vec::new();
     let arc_db = Arc::new(db);

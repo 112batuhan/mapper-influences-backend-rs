@@ -1,4 +1,9 @@
-DEFINE EVENT OVERWRITE edit_influence_description ON TABLE influenced_by WHEN $event == "UPDATE" AND $before.description != $after.description THEN (
+DEFINE EVENT OVERWRITE edit_influence_description ON TABLE influenced_by
+WHEN
+    $session.tk.ID == "backend"
+    AND $event == "UPDATE"
+    AND $before.description != $after.description
+THEN (
     CREATE activity 
     SET user = $after.in, 
         created_at = time::now(), 
