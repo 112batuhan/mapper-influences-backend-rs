@@ -8,6 +8,7 @@ use std::{
 
 use cached::proc_macro::cached;
 use futures::future::try_join_all;
+use itertools::Itertools;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -657,6 +658,7 @@ impl CombinedRequester {
         let users_to_request: Vec<u32> = beatmap_map
             .values()
             .map(|beatmap| beatmap.user_id)
+            .unique()
             .collect();
         let user_map = self
             .user_requester

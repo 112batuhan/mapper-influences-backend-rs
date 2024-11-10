@@ -286,7 +286,7 @@ impl DatabaseClient {
                     country_name,
                     groups,
                     ranked_and_approved_beatmapset_count 
-                        + guest_beatmapset_count as ranked_maps
+                        + guest_beatmapset_count as ranked_maps,
                     count(<-influenced_by) as mentions
                 FROM $things;
                 ",

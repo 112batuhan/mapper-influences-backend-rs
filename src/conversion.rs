@@ -38,11 +38,11 @@ pub struct User {
     influence_order: LinkedHashSet<i64>,
     #[serde(rename(deserialize = "country"))]
     country_code: String,
-    #[serde(default)]
+    #[serde(default = "default_country_name")]
     country_name: String,
     #[serde(default = "default_groups")]
     groups: Vec<Group>,
-    #[serde(default)]
+    #[serde(default = "default_previous_name")]
     previous_usernames: Vec<String>,
     #[serde(default)]
     ranked_and_approved_beatmapset_count: u32,
@@ -62,10 +62,17 @@ pub struct User {
 
 fn default_groups() -> Vec<Group> {
     vec![Group {
-        colour: Some("a".to_string()),
-        name: "b".to_string(),
-        short_name: "c".to_string(),
+        colour: Some("#fa3703".to_string()),
+        name: "Nomination Assessment Team".to_string(),
+        short_name: "NAT".to_string(),
     }]
+}
+fn default_previous_name() -> Vec<String> {
+    vec!["test".to_string()]
+}
+
+fn default_country_name() -> String {
+    "North Korea".to_string()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
