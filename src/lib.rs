@@ -11,6 +11,7 @@ use handlers::leaderboard::LeaderboardCache;
 use jwt::JwtUtil;
 use osu_api::{CombinedRequester, CredentialsGrantClient, RequestClient};
 
+pub mod auto_update;
 pub mod custom_cache;
 pub mod database;
 pub mod error;
