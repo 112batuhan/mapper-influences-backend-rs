@@ -18,6 +18,11 @@ use super::swap_beatmaps;
 pub struct Bio {
     pub bio: String,
 }
+impl Bio {
+    pub fn len(&self) -> usize {
+        self.bio.len()
+    }
+}
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Order {
@@ -82,11 +87,18 @@ pub async fn get_user_without_auth(
     Ok(Json(user))
 }
 
+const MAX_BIO_LENGTH: usize = 10;
+
 pub async fn update_user_bio(
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
     Json(bio): Json<Bio>,
 ) -> Result<Json<User>, AppError> {
+    if bio.len() > MAX_BIO_LENGTH {
+        return Err(AppError::BioTooLong(
+            "Bio exceeds maximum length".to_string(),
+        ));
+    }
     let mut user = state.db.update_bio(auth_data.user_id, bio.bio).await?;
     swap_beatmaps(
         state.cached_combined_requester.clone(),
