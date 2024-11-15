@@ -87,6 +87,10 @@ pub async fn update_user_bio(
     State(state): State<Arc<AppState>>,
     Json(bio): Json<Bio>,
 ) -> Result<Json<User>, AppError> {
+    const MAX_BIO_LENGTH: usize = 5000;
+    if bio.bio.len() > MAX_BIO_LENGTH {
+        return Err(AppError::StringTooLong);
+    }
     let mut user = state.db.update_bio(auth_data.user_id, bio.bio).await?;
     swap_beatmaps(
         state.cached_combined_requester.clone(),

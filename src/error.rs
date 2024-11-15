@@ -59,6 +59,9 @@ pub enum AppError {
 
     #[error("Unhandled Jwt error: {0}")]
     Jwt(#[from] jwt_simple::Error),
+
+    #[error("Input string exceeds maximum length")]
+    StringTooLong,
 }
 
 #[derive(Serialize)]
@@ -86,7 +89,9 @@ impl IntoResponse for AppError {
             AppError::MissingTokenCookie
             | AppError::JwtVerification
             | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
-            AppError::MissingLayerJson => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::MissingLayerJson | AppError::StringTooLong => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
 
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {
                 StatusCode::NOT_FOUND
