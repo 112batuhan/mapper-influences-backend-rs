@@ -11,6 +11,7 @@ use mapper_influences_backend_rs::{
     routes, AppState,
 };
 use tower_http::{
+    compression::CompressionLayer,
     cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
@@ -37,8 +38,21 @@ async fn main() {
     let mut api = OpenApi::default();
 
     let cors = CorsLayer::new().allow_methods(Any).allow_origin(Any);
+    let compression = CompressionLayer::new()
+        .gzip(true)
+        .deflate(true)
+        .zstd(true)
+        .br(true);
 
     let app = ApiRouter::new()
+        .route(
+            "/graph-vis/2d",
+            get(|| async { Html(include_str!("graph-2d.html")).into_response() }),
+        )
+        .route(
+            "/graph-vis/3d",
+            get(|| async { Html(include_str!("graph-3d.html")).into_response() }),
+        )
         .route(
             "/docs",
             get(|| async { Html(include_str!("elements-ui.html")).into_response() }),
@@ -50,6 +64,7 @@ async fn main() {
         .nest("/", routes(state.clone()))
         .finish_api(&mut api)
         .layer(cors)
+        .layer(compression)
         .layer(TraceLayer::new_for_http())
         .layer(Extension(Arc::new(api)))
         .with_state(state)

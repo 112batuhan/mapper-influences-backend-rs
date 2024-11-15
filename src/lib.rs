@@ -7,6 +7,7 @@ use axum::routing::any;
 use database::leaderboard::{LeaderboardBeatmap, LeaderboardUser};
 use database::DatabaseClient;
 use handlers::activity::ActivityTracker;
+use handlers::graph_vizualizer::GraphCache;
 use handlers::leaderboard::LeaderboardCache;
 use jwt::JwtUtil;
 use osu_api::{CombinedRequester, CredentialsGrantClient, RequestClient};
@@ -28,6 +29,7 @@ pub struct AppState {
     pub credentials_grant_client: Arc<CredentialsGrantClient>,
     pub user_leaderboard_cache: LeaderboardCache<(bool, Option<String>), LeaderboardUser>,
     pub beatmap_leaderboard_cache: LeaderboardCache<bool, LeaderboardBeatmap>,
+    pub graph_cache: GraphCache,
 }
 
 impl AppState {
@@ -63,6 +65,7 @@ impl AppState {
             credentials_grant_client,
             user_leaderboard_cache: LeaderboardCache::new(300),
             beatmap_leaderboard_cache: LeaderboardCache::new(300),
+            graph_cache: GraphCache::new(600),
         }
     }
 }
@@ -182,6 +185,12 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             "/leaderboard/beatmap",
             get_with(handlers::leaderboard::get_beatmap_leaderboard, |op| {
                 op.tag("Leaderboard")
+            }),
+        )
+        .api_route(
+            "/graph",
+            get_with(handlers::graph_vizualizer::get_graph_data, |op| {
+                op.tag("graph")
             }),
         )
 }

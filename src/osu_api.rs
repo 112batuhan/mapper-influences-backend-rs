@@ -162,6 +162,8 @@ pub struct OsuMultipleBeatmapsetResponse {
     pub title: String,
     pub artist: String,
     pub covers: Cover,
+    pub user_id: u32,
+    pub creator: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq)]
@@ -180,11 +182,27 @@ pub struct OsuBeatmapSmall {
 }
 
 impl OsuBeatmapSmall {
+    /// This function combines [`OsuMultipleBeatmap`] and [`OsuMultipleUser`].
+    ///
+    /// If user is not returned from the query, we fallback to beatmapset user.
+    /// This usually happens if the original mapper is banned. If the beatmapset submitter is also
+    /// banned, we don't have to worry about the avatar_url as osu automatically falls back to
+    /// guest picture.
     pub fn from_osu_beatmap_and_user_data(
         osu_multiple: OsuMultipleBeatmap,
-        user_name: String,
-        user_avatar_url: String,
+        user_multiple: Option<OsuMultipleUser>,
     ) -> OsuBeatmapSmall {
+        let user_name: String;
+        let user_avatar_url: String;
+
+        if let Some(user_multiple) = user_multiple {
+            user_name = user_multiple.username;
+            user_avatar_url = user_multiple.avatar_url;
+        } else {
+            user_name = osu_multiple.beatmapset.creator;
+            user_avatar_url = format!("https://a.ppy.sh/{}?", osu_multiple.beatmapset.user_id);
+        }
+
         OsuBeatmapSmall {
             id: osu_multiple.id,
             difficulty_rating: osu_multiple.difficulty_rating,
@@ -661,14 +679,10 @@ impl CombinedRequester {
             .await?;
         let combined = beatmap_map
             .into_iter()
-            .filter_map(|(beatmap_id, beatmap)| {
-                let user = user_map.get(&beatmap.user_id)?;
-                let new_beatmap = OsuBeatmapSmall::from_osu_beatmap_and_user_data(
-                    beatmap,
-                    user.username.clone(),
-                    user.avatar_url.clone(),
-                );
-                Some((beatmap_id, new_beatmap))
+            .map(|(beatmap_id, beatmap)| {
+                let user = user_map.get(&beatmap.user_id).cloned();
+                let new_beatmap = OsuBeatmapSmall::from_osu_beatmap_and_user_data(beatmap, user);
+                (beatmap_id, new_beatmap)
             })
             .collect();
 

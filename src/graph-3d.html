@@ -1,0 +1,59 @@
+<head>
+  <style> body { margin: 0; } </style>
+
+  <script src="//unpkg.com/react/umd/react.production.min.js"></script>
+  <script src="//unpkg.com/react-dom/umd/react-dom.production.min.js"></script>
+  <script src="//unpkg.com/@babel/standalone"></script>
+  <script src="//unpkg.com/react-force-graph-3d"></script>
+  <script src="//unpkg.com/d3@7.8.4/dist/d3.min.js"></script>
+</head>
+
+<body>
+  <div id="graph"></div>
+
+  <script type="text/jsx">
+     fetch('../graph', {
+      headers: {
+        'Accept-Encoding': 'gzip'
+      }
+    })
+      .then(res => res.json())
+      .then(data => {
+        const sortedNodes = data.nodes.sort((a, b) => b.mentions - a.mentions);
+        
+        // Filter out nodes without any incoming or outgoing edges
+        const filteredNodes = data.nodes.filter(node => {
+          return data.links.some(link => link.source === node.id || link.target === node.id);
+        });
+
+        const filteredData = {
+          nodes: filteredNodes,
+          links: data.links.filter(link => {
+            // Keep only links where both nodes are in the filtered list
+            return filteredNodes.some(node => node.id === link.source || node.id === link.target);
+          })
+        };
+        ReactDOM.render(
+          <ForceGraph3D
+            graphData={filteredData}
+            nodeLabel={node => `${node.username}: ${node.mentions}`}
+            nodeAutoColorBy="id"
+            linkAutoColorBy="target"
+            linkDirectionalParticles={1}
+            enableNodeDrag={false}
+            nodeVal={node => Math.pow(node.mentions, 1.5)} // Exponential scaling
+            cooldownTime={20000}
+
+            // Add custom radial force for centralizing higher-mention nodes
+            ref={fg => {
+              if (fg) {
+                fg.d3Force('link').distance(200); // Adjust link distance
+                fg.d3Force('charge').strength(-180); // Increase repulsion to spread nodes
+              }
+            }}
+          />,
+          document.getElementById('graph')
+        );
+      });
+  </script>
+</body>

@@ -11,6 +11,7 @@ use crate::{
 
 pub mod activity;
 pub mod auth;
+pub mod graph_vizualizer;
 pub mod influence;
 pub mod leaderboard;
 pub mod osu_search;
