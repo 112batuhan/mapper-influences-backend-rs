@@ -19,7 +19,6 @@ pub struct Bio {
     pub bio: String,
 }
 
-
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Order {
     pub influence_user_ids: Vec<u32>,
@@ -83,7 +82,6 @@ pub async fn get_user_without_auth(
     Ok(Json(user))
 }
 
-
 pub async fn update_user_bio(
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
@@ -91,7 +89,7 @@ pub async fn update_user_bio(
 ) -> Result<Json<User>, AppError> {
     const MAX_BIO_LENGTH: usize = 5000;
     if bio.bio.len() > MAX_BIO_LENGTH {
-        return Err(AppError::BioTooLong)
+        return Err(AppError::StringTooLong);
     }
     let mut user = state.db.update_bio(auth_data.user_id, bio.bio).await?;
     swap_beatmaps(

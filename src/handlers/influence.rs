@@ -125,7 +125,7 @@ pub async fn update_influence_description(
 ) -> Result<Json<Influence>, AppError> {
     const MAX_DESC_LENGTH: usize = 5000;
     if description.description.len() > MAX_DESC_LENGTH {
-        return Err(AppError::BioTooLong);
+        return Err(AppError::StringTooLong);
     }
     let mut influence = state
         .db
