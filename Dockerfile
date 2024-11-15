@@ -18,6 +18,8 @@ FROM rust:slim
 WORKDIR /usr/src/mapper_influences_backend
 COPY --from=rust-builder /usr/src/mapper_influences_backend/target/release/mapper-influences-backend .
 COPY --from=rust-builder /usr/src/mapper_influences_backend/src/elements-ui.html .
+COPY --from=rust-builder /usr/src/mapper_influences_backend/src/graph-2d.html .
+COPY --from=rust-builder /usr/src/mapper_influences_backend/src/graph-3d.html .
 
 ENV SURREAL_USER=${SURREAL_USER}
 ENV SURREAL_PASS=${SURREAL_PASS}
