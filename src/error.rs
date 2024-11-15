@@ -60,8 +60,8 @@ pub enum AppError {
     #[error("Unhandled Jwt error: {0}")]
     Jwt(#[from] jwt_simple::Error),
 
-    #[error("Bio too long:")]
-    BioTooLong(String),
+    #[error("Bio exceeds maximum length")]
+    BioTooLong,
 }
 
 #[derive(Serialize)]
@@ -89,8 +89,7 @@ impl IntoResponse for AppError {
             AppError::MissingTokenCookie
             | AppError::JwtVerification
             | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
-            AppError::MissingLayerJson => StatusCode::UNPROCESSABLE_ENTITY,
-            AppError::BioTooLong(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::MissingLayerJson | AppError::BioTooLong => StatusCode::UNPROCESSABLE_ENTITY,
 
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {
                 StatusCode::NOT_FOUND
