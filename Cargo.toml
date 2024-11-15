@@ -34,7 +34,11 @@ surrealdb = "2.0.4"
 surrealdb-migrations = "2.0.0"
 thiserror = { version = "1.0.64" }
 tokio = { version = "1.40", features = ["full"] }
-tower-http = { version = "0.6.1", features = ["cors", "trace"] }
+tower-http = { version = "0.6.1", features = [
+    "compression-full",
+    "cors",
+    "trace",
+] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 

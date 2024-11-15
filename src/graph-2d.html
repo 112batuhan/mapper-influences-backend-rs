@@ -1,0 +1,67 @@
+<head>
+  <style> body { margin: 0; } </style>
+
+  <script src="//unpkg.com/react/umd/react.production.min.js"></script>
+  <script src="//unpkg.com/react-dom/umd/react-dom.production.min.js"></script>
+  <script src="//unpkg.com/@babel/standalone"></script>
+  <script src="//unpkg.com/d3@7.8.4/dist/d3.min.js"></script>
+  <script src="//unpkg.com/react-force-graph-2d"></script>
+
+</head>
+
+<body>
+  <div id="graph"></div>
+
+  <script type="text/jsx">
+    fetch('../graph', {
+      headers: {
+        'Accept-Encoding': 'gzip'
+      }
+    })
+      .then(res => res.json())
+      .then(data => {
+        // Filter out nodes without any incoming or outgoing edges
+        const filteredNodes = data.nodes.filter(node => {
+          return data.links.some(link => link.source === node.id || link.target === node.id);
+        });
+
+        // Sort the filtered nodes by 'mentions' in descending order
+        const sortedFilteredNodes = filteredNodes.sort((a, b) => b.mentions - a.mentions);
+
+        const filteredData = {
+          nodes: sortedFilteredNodes,
+          links: data.links.filter(link => {
+            // Keep only links where both nodes are in the filtered list
+            return sortedFilteredNodes.some(node => node.id === link.source || node.id === link.target);
+          })
+        };
+
+        ReactDOM.render(
+          <ForceGraph2D
+            graphData={filteredData}
+            nodeAutoColorBy="id"
+            linkAutoColorBy="target"
+            nodeLabel={node => `${node.username}: ${node.mentions}`}
+            linkWidth={0.1}
+            linkOpacity={0.1}
+            enableNodeDrag={false}
+            nodeVal={node => Math.pow(node.mentions, 1.7)} // Exponential scaling for node size
+            cooldownTime={20000} // Cooling down time for better spacing
+            ref={graph => {
+              if (graph) {
+                // Adjust physics simulation for better spacing
+                graph.d3Force('charge').strength(-5000); // More negative value for repulsion
+                graph.d3Force('link').distance(300);  // Increase link distance
+                // Add collision detection to prevent overlap
+                graph.d3Force('collide', d3.forceCollide()
+                  .radius(node => Math.pow(node.mentions, 1.4) + 5) // Collision radius based on node size
+                  .iterations(10) // Number of iterations to apply the force
+                );
+              }
+            }}
+          />,
+          document.getElementById('graph')
+        );
+      });
+  </script>
+</body>

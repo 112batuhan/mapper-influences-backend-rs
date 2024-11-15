@@ -8,6 +8,7 @@ use surrealdb::{
 use crate::error::AppError;
 
 pub mod activity;
+pub mod graph_vizualizer;
 pub mod influence;
 pub mod leaderboard;
 pub mod user;
