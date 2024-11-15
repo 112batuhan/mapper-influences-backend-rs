@@ -89,7 +89,9 @@ impl IntoResponse for AppError {
             AppError::MissingTokenCookie
             | AppError::JwtVerification
             | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
-            AppError::MissingLayerJson | AppError::StringTooLong => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::MissingLayerJson 
+            | AppError::StringTooLong => StatusCode::UNPROCESSABLE_ENTITY,
+            
 
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {
                 StatusCode::NOT_FOUND
