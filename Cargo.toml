@@ -13,9 +13,10 @@ name = "convert"
 path = "src/conversion.rs"
 
 [dependencies]
-aide = { version = "0.13.4", features = ["axum", "axum-extra", "macros"] }
+aide = { version = "0.13", features = ["axum", "axum-extra", "macros"] }
 axum = { version = "0.7.7", features = ["macros", "ws"] }
 axum-extra = { version = "0.9.4", features = ["cookie"] }
+axum-swagger-ui = "0.3.0"
 cached = { version = "0.53.1", features = ["async"] }
 chrono = "0.4.38"
 dotenvy = "0.15.7"
@@ -27,7 +28,7 @@ jwt-simple = { version = "0.12.10", default-features = false, features = [
     "pure-rust",
 ] }
 reqwest = { version = "0.12", features = ["json"] }
-schemars = { version = "0.8.21", features = ["chrono"] }
+schemars = { version = "0.8.16", features = ["chrono"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 surrealdb = "2.0.4"

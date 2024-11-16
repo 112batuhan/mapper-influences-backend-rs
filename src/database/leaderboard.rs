@@ -1,7 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::AppError, osu_api::BeatmapEnum};
+use crate::{
+    error::AppError,
+    osu_api::{BeatmapEnum, OsuBeatmapSmall},
+};
 
 use super::{user::UserSmall, DatabaseClient};
 
@@ -13,6 +16,7 @@ pub struct LeaderboardUser {
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, PartialEq)]
 pub struct LeaderboardBeatmap {
+    #[schemars(with = "OsuBeatmapSmall")]
     pub beatmap: BeatmapEnum,
     pub count: u32,
 }

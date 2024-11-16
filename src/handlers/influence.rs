@@ -53,14 +53,13 @@ pub async fn delete_influence(
         .db
         .remove_influence_relation(auth_data.user_id, influenced_to)
         .await?;
-    if let Some(beatmaps) = influence.beatmaps.as_mut() {
-        swap_beatmaps(
-            state.cached_combined_requester.clone(),
-            &auth_data.osu_token,
-            beatmaps,
-        )
-        .await?;
-    }
+    swap_beatmaps(
+        state.cached_combined_requester.clone(),
+        &auth_data.osu_token,
+        &mut influence.beatmaps,
+    )
+    .await?;
+
     Ok(Json(influence))
 }
 
@@ -84,14 +83,12 @@ pub async fn add_influence_beatmap(
         .add_beatmap_to_influence(auth_data.user_id, influenced_to, beatmap_id)
         .await?;
 
-    if let Some(beatmaps) = influence.beatmaps.as_mut() {
-        swap_beatmaps(
-            state.cached_combined_requester.clone(),
-            &auth_data.osu_token,
-            beatmaps,
-        )
-        .await?;
-    }
+    swap_beatmaps(
+        state.cached_combined_requester.clone(),
+        &auth_data.osu_token,
+        &mut influence.beatmaps,
+    )
+    .await?;
 
     Ok(Json(influence))
 }
@@ -106,14 +103,13 @@ pub async fn remove_influence_beatmap(
         .remove_beatmap_from_influence(auth_data.user_id, influenced_to, beatmap_id)
         .await?;
 
-    if let Some(beatmaps) = influence.beatmaps.as_mut() {
-        swap_beatmaps(
-            state.cached_combined_requester.clone(),
-            &auth_data.osu_token,
-            beatmaps,
-        )
-        .await?;
-    }
+    swap_beatmaps(
+        state.cached_combined_requester.clone(),
+        &auth_data.osu_token,
+        &mut influence.beatmaps,
+    )
+    .await?;
+
     Ok(Json(influence))
 }
 
@@ -132,14 +128,12 @@ pub async fn update_influence_description(
         .update_influence_description(auth_data.user_id, influenced_to, description.description)
         .await?;
 
-    if let Some(beatmaps) = influence.beatmaps.as_mut() {
-        swap_beatmaps(
-            state.cached_combined_requester.clone(),
-            &auth_data.osu_token,
-            beatmaps,
-        )
-        .await?;
-    }
+    swap_beatmaps(
+        state.cached_combined_requester.clone(),
+        &auth_data.osu_token,
+        &mut influence.beatmaps,
+    )
+    .await?;
     Ok(Json(influence))
 }
 
@@ -154,14 +148,12 @@ pub async fn update_influence_type(
         .update_influence_type(auth_data.user_id, influenced_to, type_id)
         .await?;
 
-    if let Some(beatmaps) = influence.beatmaps.as_mut() {
-        swap_beatmaps(
-            state.cached_combined_requester.clone(),
-            &auth_data.osu_token,
-            beatmaps,
-        )
-        .await?;
-    }
+    swap_beatmaps(
+        state.cached_combined_requester.clone(),
+        &auth_data.osu_token,
+        &mut influence.beatmaps,
+    )
+    .await?;
     Ok(Json(influence))
 }
 
@@ -191,7 +183,6 @@ pub async fn get_user_influences(
     let beatmaps_to_request: Vec<u32> = influences
         .iter()
         .flat_map(|influence| &influence.beatmaps)
-        .flatten()
         .map(|maps| maps.get_id())
         .unique()
         .collect();
@@ -207,7 +198,6 @@ pub async fn get_user_influences(
         let new_beatmaps = influence
             .beatmaps
             .iter()
-            .flatten()
             .filter_map(|beatmap| {
                 // it's not ok to use remove here
                 // there could be beatmaps used more than once
@@ -215,7 +205,7 @@ pub async fn get_user_influences(
                 Some(BeatmapEnum::All(beatmap.clone()))
             })
             .collect();
-        influence.beatmaps = Some(new_beatmaps);
+        influence.beatmaps = new_beatmaps;
     });
 
     Ok(Json(influences))

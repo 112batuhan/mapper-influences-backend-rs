@@ -6,6 +6,7 @@ use axum::{
     routing::get,
     Extension, Json,
 };
+use axum_swagger_ui::swagger_ui;
 use mapper_influences_backend_rs::{
     osu_api::{CredentialsGrantClient, RequestClient},
     routes, AppState,
@@ -34,6 +35,9 @@ async fn main() {
         .expect("Failed to initialize credentials grant client");
     let state = Arc::new(AppState::new(request, client_credential_client).await);
 
+    aide::gen::on_error(|error| {
+        println!("{error}");
+    });
     aide::gen::extract_schemas(true);
     let mut api = OpenApi::default();
 
@@ -52,6 +56,10 @@ async fn main() {
         .route(
             "/graph-vis/3d",
             get(|| async { Html(include_str!("graph-3d.html")).into_response() }),
+        )
+        .route(
+            "/swagger",
+            get(|| async { Html(swagger_ui("./openapi.json")) }),
         )
         .route(
             "/docs",

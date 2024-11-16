@@ -1,7 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::AppError, osu_api::BeatmapEnum};
+use crate::{
+    error::AppError,
+    osu_api::{BeatmapEnum, OsuBeatmapSmall},
+};
 
 use super::{numerical_thing, user::UserSmall, DatabaseClient};
 
@@ -10,8 +13,13 @@ pub struct Influence {
     pub user: UserSmall,
     pub influence_type: u8,
     pub description: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub beatmaps: Option<Vec<BeatmapEnum>>,
+    #[serde(default = "default_beatmaps")]
+    #[schemars(with = "Vec<OsuBeatmapSmall>")]
+    pub beatmaps: Vec<BeatmapEnum>,
+}
+
+fn default_beatmaps() -> Vec<BeatmapEnum> {
+    Vec::new()
 }
 
 impl DatabaseClient {
