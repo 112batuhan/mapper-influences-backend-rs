@@ -41,7 +41,12 @@ async fn main() {
     aide::gen::extract_schemas(true);
     let mut api = OpenApi::default();
 
-    let cors = CorsLayer::new().allow_methods(Any).allow_origin(Any);
+    let cors = CorsLayer::new()
+        .allow_methods(Any)
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_credentials(true);
+
     let compression = CompressionLayer::new()
         .gzip(true)
         .deflate(true)

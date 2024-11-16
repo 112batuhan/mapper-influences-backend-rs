@@ -29,6 +29,7 @@ use crate::{
     schema_with, AppState,
 };
 
+/// `Activity` type
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct Activity {
     id: String,

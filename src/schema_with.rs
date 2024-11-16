@@ -6,11 +6,11 @@ use crate::{database::user::UserSmall, osu_api::OsuBeatmapSmall};
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct FlattenedActivityType {
     pub event_type: EventType,
-    /// Influenced user. `UserSmall` object. For `ADD_INFLUENCE`, `REMOVE_INFLUENCE`,
+    /// Influenced user. `UserSmall` type. For `ADD_INFLUENCE`, `REMOVE_INFLUENCE`,
     /// `ADD_INFLUENCE_BEATMAP`, `REMOVE_INFLUENCE_BEATMAP`, `EDIT_INFLUENCE_DESC`,
     /// `EDIT_INFLUENCE_TYPE` activity types.
     pub influence: Option<UserSmall>,
-    /// Added or removed beatmap. `OsuBeatmapSmall` object. For `ADD_USER_BEATMAP`, `REMOVE_USER_BEATMAP`,
+    /// Added or removed beatmap. `OsuBeatmapSmall` type. For `ADD_USER_BEATMAP`, `REMOVE_USER_BEATMAP`,
     /// `ADD_INFLUENCE_BEATMAP`, `REMOVE_INFLUENCE_BEATMAP` activity types.
     pub beatmap: Option<OsuBeatmapSmall>,
     /// Changed influence description. for `EDIT_INFLUENCE_DESC` activity type.
