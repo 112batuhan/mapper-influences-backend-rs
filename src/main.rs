@@ -11,11 +11,7 @@ use mapper_influences_backend_rs::{
     osu_api::{CredentialsGrantClient, RequestClient},
     routes, AppState,
 };
-use tower_http::{
-    compression::CompressionLayer,
-    cors::{Any, CorsLayer},
-    trace::TraceLayer,
-};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -41,12 +37,8 @@ async fn main() {
     aide::gen::extract_schemas(true);
     let mut api = OpenApi::default();
 
-    let cors = CorsLayer::new()
-        .allow_methods(Any)
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_credentials(true);
-
+    // TODO: restrict this after full deployment
+    let cors = CorsLayer::very_permissive();
     let compression = CompressionLayer::new()
         .gzip(true)
         .deflate(true)
