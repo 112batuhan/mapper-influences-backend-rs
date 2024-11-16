@@ -28,6 +28,43 @@ fn default_limit() -> u32 {
     100
 }
 
+// TODO: good opportunity to try macros?
+// needed for aide documentation
+#[derive(Deserialize, JsonSchema)]
+pub struct PathInfluencedTo {
+    #[serde(rename = "influenced_to")]
+    value: u32,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct PathBeatmapId {
+    #[serde(rename = "beatmap_id")]
+    value: u32,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct PathUserId {
+    #[serde(rename = "user_id")]
+    value: u32,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct PathQuery {
+    #[serde(rename = "query")]
+    pub value: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct PathUserBeatmapIds {
+    pub influenced_to: u32,
+    pub beatmap_id: u32,
+}
+#[derive(Deserialize, JsonSchema)]
+pub struct PathUserTypeId {
+    pub influenced_to: u32,
+    pub type_id: u8,
+}
+
 /// A shortcut to use in user and influence endpoints.
 /// This is not usable for multiple influences as this function would send requests for each
 /// influence. They have their own implementation to save requests

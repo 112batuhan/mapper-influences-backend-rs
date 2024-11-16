@@ -18,7 +18,10 @@ use crate::{
     AppState,
 };
 
+use super::PathQuery;
+
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+/// `SearchBeatmapset` type. For more compact beatmap search results
 pub struct SearchBeatmapset {
     pub id: u32,
     pub beatmaps: Vec<BeatmapOsu>,
@@ -68,17 +71,17 @@ impl SearchBeatmapset {
 #[cached(
     ty = "CustomCache<String, Json<Vec<UserSmall>>>",
     create = "{CustomCache::new(600)}",
-    convert = r#"{query.clone()}"#,
+    convert = r#"{path_query.value.clone()}"#,
     result = true
 )]
 pub async fn osu_user_search(
-    Path(query): Path<String>,
+    Path(path_query): Path<PathQuery>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<UserSmall>>, AppError> {
     let user_search_osu = state
         .request
-        .search_user_osu(&auth_data.osu_token, &query)
+        .search_user_osu(&auth_data.osu_token, &path_query.value)
         .await?
         .user
         .data;

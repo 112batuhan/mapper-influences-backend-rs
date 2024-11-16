@@ -7,7 +7,7 @@ use axum::{
 };
 use cached::Cached;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::osu_api::{BeatmapEnum, GetID};
 use crate::{
@@ -71,15 +71,10 @@ impl<K: Hash + Eq + Clone, V: Clone> LeaderboardCache<K, V> {
     }
 }
 
-#[derive(Clone, Serialize, JsonSchema)]
-pub struct LeaderboardResponse<T> {
-    leaderboard: Vec<T>,
-}
-
 pub async fn get_user_leaderboard(
     Query(query): Query<LeaderboardQuery>,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<LeaderboardResponse<LeaderboardUser>>, AppError> {
+) -> Result<Json<Vec<LeaderboardUser>>, AppError> {
     let leaderboard_cache_limit = 500;
 
     if let Some(leaderboard) = state.user_leaderboard_cache.cached_query(
@@ -87,7 +82,7 @@ pub async fn get_user_leaderboard(
         query.start,
         query.limit,
     )? {
-        return Ok(Json(LeaderboardResponse { leaderboard }));
+        return Ok(Json(leaderboard));
     }
     let mut leaderboard = state
         .db
@@ -110,15 +105,13 @@ pub async fn get_user_leaderboard(
     state
         .user_leaderboard_cache
         .add_leaderboard(&(query.ranked, query.country), leaderboard)?;
-    Ok(Json(LeaderboardResponse {
-        leaderboard: limited_leaderboard,
-    }))
+    Ok(Json(limited_leaderboard))
 }
 
 pub async fn get_beatmap_leaderboard(
     Query(query): Query<LeaderboardQuery>,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<LeaderboardResponse<LeaderboardBeatmap>>, AppError> {
+) -> Result<Json<Vec<LeaderboardBeatmap>>, AppError> {
     let leaderboard_cache_limit = 200;
 
     if let Some(leaderboard) =
@@ -126,7 +119,7 @@ pub async fn get_beatmap_leaderboard(
             .beatmap_leaderboard_cache
             .cached_query(&query.ranked, query.start, query.limit)?
     {
-        return Ok(Json(LeaderboardResponse { leaderboard }));
+        return Ok(Json(leaderboard));
     }
 
     let leaderboard = state
@@ -168,7 +161,5 @@ pub async fn get_beatmap_leaderboard(
     state
         .beatmap_leaderboard_cache
         .add_leaderboard(&query.ranked, leaderboard)?;
-    Ok(Json(LeaderboardResponse {
-        leaderboard: limited_leaderboard,
-    }))
+    Ok(Json(limited_leaderboard))
 }

@@ -12,7 +12,7 @@ use crate::{
     AppState,
 };
 
-use super::swap_beatmaps;
+use super::{swap_beatmaps, PathBeatmapId, PathUserId};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Bio {
@@ -41,16 +41,16 @@ pub async fn get_me(
 /// Returns a database user, If the user is not in database, then returns a osu! API response
 pub async fn get_user(
     Extension(auth_data): Extension<AuthData>,
-    Path(user_id): Path<u32>,
+    Path(user_id): Path<PathUserId>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<User>, AppError> {
-    let user_result = state.db.get_user_details(user_id).await;
+    let user_result = state.db.get_user_details(user_id.value).await;
 
     let mut user = match user_result {
         // Early return without any processing if the user is not in DB
         Err(AppError::MissingUser(_)) => {
             let user_osu =
-                cached_osu_user_request(state.request.clone(), &auth_data.osu_token, user_id)
+                cached_osu_user_request(state.request.clone(), &auth_data.osu_token, user_id.value)
                     .await?;
             return Ok(Json(user_osu.into()));
         }
@@ -67,12 +67,13 @@ pub async fn get_user(
     Ok(Json(user))
 }
 
+// TODO: talk about this with fursum
 pub async fn get_user_without_auth(
     Extension(auth_data): Extension<AuthData>,
-    Path(user_id): Path<u32>,
+    Path(user_id): Path<PathUserId>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<User>, AppError> {
-    let mut user = state.db.get_user_details(user_id).await?;
+    let mut user = state.db.get_user_details(user_id.value).await?;
     swap_beatmaps(
         state.cached_combined_requester.clone(),
         &auth_data.osu_token,
@@ -102,23 +103,23 @@ pub async fn update_user_bio(
 }
 
 pub async fn add_user_beatmap(
-    Path(beatmap_id): Path<u32>,
+    Path(beatmap_id): Path<PathBeatmapId>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<User>, AppError> {
     let beatmap = state
         .cached_combined_requester
         .clone()
-        .get_beatmaps_only(&[beatmap_id], &auth_data.osu_token)
+        .get_beatmaps_only(&[beatmap_id.value], &auth_data.osu_token)
         .await?;
 
     if beatmap.is_empty() {
-        return Err(AppError::NonExistingMap(beatmap_id));
+        return Err(AppError::NonExistingMap(beatmap_id.value));
     }
 
     let mut user = state
         .db
-        .add_beatmap_to_user(auth_data.user_id, beatmap_id)
+        .add_beatmap_to_user(auth_data.user_id, beatmap_id.value)
         .await?;
     swap_beatmaps(
         state.cached_combined_requester.clone(),
@@ -130,13 +131,13 @@ pub async fn add_user_beatmap(
 }
 
 pub async fn delete_user_beatmap(
-    Path(beatmap_id): Path<u32>,
+    Path(beatmap_id): Path<PathBeatmapId>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<User>, AppError> {
     let mut user = state
         .db
-        .remove_beatmap_from_user(auth_data.user_id, beatmap_id)
+        .remove_beatmap_from_user(auth_data.user_id, beatmap_id.value)
         .await?;
     swap_beatmaps(
         state.cached_combined_requester.clone(),

@@ -1,5 +1,6 @@
 use std::sync::{Arc, LazyLock};
 
+use aide::transform::TransformOperation;
 use axum::{
     extract::{Query, Request, State},
     response::{IntoResponse, Redirect, Response},
@@ -68,6 +69,10 @@ pub async fn osu_oauth2_redirect(
         state.db.upsert_user(osu_user, true)
     )?;
     Ok(redirect_response)
+}
+
+pub fn osu_oauth2_redirect_docs(op: TransformOperation<'_>) -> TransformOperation<'_> {
+    op.tag("Auth").response::<302, ()>()
 }
 
 pub async fn logout() -> Response {

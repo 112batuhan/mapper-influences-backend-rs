@@ -8,11 +8,14 @@ use crate::{
 
 use super::{numerical_thing, user::UserSmall, DatabaseClient};
 
+/// `Influence` type. Used in influence and mentions related endpoints
 #[derive(Serialize, Deserialize, JsonSchema, PartialEq, Clone, Debug)]
 pub struct Influence {
     pub user: UserSmall,
     pub influence_type: u8,
     pub description: String,
+    /// `OsuUserSmall` object. This array will be empty for mentions endpoint even if the
+    /// influence contains beatmaps
     #[serde(default = "default_beatmaps")]
     #[schemars(with = "Vec<OsuBeatmapSmall>")]
     pub beatmaps: Vec<BeatmapEnum>,

@@ -9,15 +9,19 @@ use crate::{
 use super::{user::UserSmall, DatabaseClient};
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, PartialEq, Eq)]
+/// `LeaderboardUser` type
 pub struct LeaderboardUser {
     user: UserSmall,
+    /// leaderboard mention count
     count: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, PartialEq)]
+/// `LeaderboardBeatmap` type
 pub struct LeaderboardBeatmap {
     #[schemars(with = "OsuBeatmapSmall")]
     pub beatmap: BeatmapEnum,
+    /// Amount of times that this map has been added to the mentions
     pub count: u32,
 }
 
@@ -43,7 +47,7 @@ impl DatabaseClient {
                     out.groups as user.groups,
                     out.ranked_and_approved_beatmapset_count 
                         + out.guest_beatmapset_count as user.ranked_maps,
-                    count(out<-influenced_by) as user.mentions               
+                    count(out<-influenced_by) as user.mentions
                 FROM 
                     (SELECT 
                         count() AS count, 

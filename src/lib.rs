@@ -76,7 +76,10 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
         .api_route(
             "/search/map",
             get_with(handlers::osu_search::osu_beatmap_search, |op| {
-                op.tag("Search")
+                op.tag("Search").description(
+                    "osu! beatmap search. 
+                    Use the same query parameters in official beatmap search",
+                )
             }),
         )
         .api_route(
@@ -150,7 +153,7 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             delete_with(handlers::user::delete_user_beatmap, |op| op.tag("User")),
         )
         .api_route(
-            "/user/influence-order",
+            "/users/influence-order",
             post_with(handlers::user::set_influence_order, |op| op.tag("User")),
         )
         .route_layer(middleware::from_fn_with_state(
@@ -166,11 +169,15 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
         .route("/ws", any(handlers::activity::ws_handler))
         .api_route(
             "/oauth/osu-redirect",
-            get_with(handlers::auth::osu_oauth2_redirect, |op| op.tag("Auth")),
+            get_with(handlers::auth::osu_oauth2_redirect, |op| {
+                op.tag("Auth").response::<302, ()>()
+            }),
         )
         .api_route(
             "/oauth/logout",
-            get_with(handlers::auth::logout, |op| op.tag("Auth")),
+            get_with(handlers::auth::logout, |op| {
+                op.tag("Auth").response::<200, ()>()
+            }),
         )
         .api_route(
             "/oauth/admin",
@@ -191,7 +198,7 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
         .api_route(
             "/graph",
             get_with(handlers::graph_vizualizer::get_graph_data, |op| {
-                op.tag("graph")
+                op.tag("Graph")
             }),
         )
 }

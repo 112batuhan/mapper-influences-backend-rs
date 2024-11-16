@@ -59,6 +59,7 @@ pub struct Country {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq, Eq)]
+/// `Group` type
 pub struct Group {
     pub colour: Option<String>,
     pub name: String,
@@ -98,6 +99,7 @@ pub struct OsuSearchUserResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+/// `BeatmapOsu` type. Used in `SearchBeatmapset` type
 pub struct BeatmapOsu {
     pub difficulty_rating: f64,
     pub id: u32,
@@ -167,6 +169,7 @@ pub struct OsuMultipleBeatmapsetResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq)]
+/// `OsuBeatmapSmall` type. Mainly for beatmap cards
 pub struct OsuBeatmapSmall {
     pub id: u32,
     pub difficulty_rating: f32,

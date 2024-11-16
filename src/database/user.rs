@@ -9,6 +9,7 @@ use crate::{
 
 use super::{numerical_thing, DatabaseClient};
 
+/// Full `User` type that has all the information. For user profile usage.
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 pub struct User {
     pub id: u32,
@@ -58,6 +59,7 @@ impl From<UserOsu> for User {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq, Eq)]
+/// `UserSmall` type. This is a much more compact user type that can be used for user cards
 pub struct UserSmall {
     pub id: u32,
     pub username: String,
@@ -65,6 +67,7 @@ pub struct UserSmall {
     pub groups: Vec<Group>,
     pub country_code: String,
     pub country_name: String,
+    /// This is the sum of ranked_and_approved_beatmapset and guest_beatmapset counts
     pub ranked_maps: u32,
     /// This will have a number if the data is coming from database.
     /// If the data comes from osu! API, then this will be null
