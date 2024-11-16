@@ -14,12 +14,12 @@ use osu_api::{CombinedRequester, CredentialsGrantClient, RequestClient};
 
 pub mod custom_cache;
 pub mod database;
+pub mod documentation;
 pub mod error;
 pub mod handlers;
 pub mod jwt;
 pub mod osu_api;
 pub mod retry;
-pub mod schema_with;
 
 pub struct AppState {
     pub db: Arc<DatabaseClient>,

@@ -14,7 +14,7 @@ pub struct Influence {
     pub user: UserSmall,
     pub influence_type: u8,
     pub description: String,
-    /// `OsuUserSmall` object. This array will be empty for mentions endpoint even if the
+    /// `OsuUserSmall` type. This array will be empty for mentions endpoint even if the
     /// influence contains beatmaps
     #[serde(default = "default_beatmaps")]
     #[schemars(with = "Vec<OsuBeatmapSmall>")]

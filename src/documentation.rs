@@ -1,3 +1,5 @@
+//! Custom documentation types and wrappers
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

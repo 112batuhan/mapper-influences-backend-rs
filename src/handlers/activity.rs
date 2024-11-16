@@ -23,10 +23,11 @@ use tokio::sync::{
 
 use crate::{
     database::{user::UserSmall, DatabaseClient},
+    documentation,
     error::AppError,
     osu_api::{BeatmapEnum, CombinedRequester, CredentialsGrantClient, GetID},
     retry::Retryable,
-    schema_with, AppState,
+    AppState,
 };
 
 /// `Activity` type
@@ -36,7 +37,7 @@ pub struct Activity {
     user: UserSmall,
     #[schemars(with = "chrono::DateTime<chrono::Utc>")]
     created_at: Datetime,
-    #[schemars(with = "schema_with::FlattenedActivityType")]
+    #[schemars(with = "documentation::FlattenedActivityType")]
     #[serde(flatten)]
     activity_type: ActivityType,
 }
