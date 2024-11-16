@@ -14,7 +14,9 @@ use crate::{
     database::user::UserSmall,
     error::AppError,
     jwt::AuthData,
-    osu_api::{cached_osu_user_request, BaseBeatmapset, BeatmapOsu, OsuMultipleUser},
+    osu_api::{
+        cached_requester::cached_osu_user_request, BaseBeatmapset, BeatmapOsu, OsuMultipleUser,
+    },
     AppState,
 };
 

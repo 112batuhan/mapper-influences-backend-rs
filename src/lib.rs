@@ -10,7 +10,9 @@ use handlers::activity::ActivityTracker;
 use handlers::graph_vizualizer::GraphCache;
 use handlers::leaderboard::LeaderboardCache;
 use jwt::JwtUtil;
-use osu_api::{CombinedRequester, CredentialsGrantClient, RequestClient};
+use osu_api::cached_requester::CombinedRequester;
+use osu_api::credentials_grant::CredentialsGrantClient;
+use osu_api::request::Requester;
 
 pub mod custom_cache;
 pub mod database;
@@ -23,7 +25,7 @@ pub mod retry;
 
 pub struct AppState {
     pub db: Arc<DatabaseClient>,
-    pub request: Arc<RequestClient>,
+    pub request: Arc<dyn Requester>,
     pub jwt: JwtUtil,
     pub cached_combined_requester: Arc<CombinedRequester>,
     pub activity_tracker: Arc<ActivityTracker>,
@@ -35,7 +37,7 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new(
-        request: Arc<RequestClient>,
+        request: Arc<dyn Requester>,
         credentials_grant_client: Arc<CredentialsGrantClient>,
     ) -> AppState {
         let db = Arc::new(

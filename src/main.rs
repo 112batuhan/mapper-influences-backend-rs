@@ -8,7 +8,7 @@ use axum::{
 };
 use axum_swagger_ui::swagger_ui;
 use mapper_influences_backend_rs::{
-    osu_api::{CredentialsGrantClient, RequestClient},
+    osu_api::{credentials_grant::CredentialsGrantClient, request::OsuApiRequestClient},
     routes, AppState,
 };
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
@@ -25,7 +25,7 @@ async fn main() {
         .init();
 
     // initializing client wrappers and state
-    let request = Arc::new(RequestClient::new("https://osu.ppy.sh", 10));
+    let request = Arc::new(OsuApiRequestClient::new(10));
     let client_credential_client = CredentialsGrantClient::new(request.clone())
         .await
         .expect("Failed to initialize credentials grant client");

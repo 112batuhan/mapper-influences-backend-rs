@@ -14,9 +14,11 @@ path = "src/conversion.rs"
 
 [dependencies]
 aide = { version = "0.13", features = ["axum", "axum-extra", "macros"] }
+async-trait = "0.1.83"
 axum = { version = "0.7.7", features = ["macros", "ws"] }
 axum-extra = { version = "0.9.4", features = ["cookie"] }
 axum-swagger-ui = "0.3.0"
+bytes = { version = "1.8.0", features = ["serde"] }
 cached = { version = "0.53.1", features = ["async"] }
 chrono = "0.4.38"
 dotenvy = "0.15.7"

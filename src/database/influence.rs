@@ -16,13 +16,9 @@ pub struct Influence {
     pub description: String,
     /// `OsuUserSmall` type. This array will be empty for mentions endpoint even if the
     /// influence contains beatmaps
-    #[serde(default = "default_beatmaps")]
+    #[serde(default)]
     #[schemars(with = "Vec<OsuBeatmapSmall>")]
     pub beatmaps: Vec<BeatmapEnum>,
-}
-
-fn default_beatmaps() -> Vec<BeatmapEnum> {
-    Vec::new()
 }
 
 impl DatabaseClient {

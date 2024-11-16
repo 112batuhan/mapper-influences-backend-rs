@@ -25,7 +25,10 @@ use crate::{
     database::{user::UserSmall, DatabaseClient},
     documentation,
     error::AppError,
-    osu_api::{BeatmapEnum, CombinedRequester, CredentialsGrantClient, GetID},
+    osu_api::{
+        cached_requester::CombinedRequester, credentials_grant::CredentialsGrantClient,
+        BeatmapEnum, GetID,
+    },
     retry::Retryable,
     AppState,
 };

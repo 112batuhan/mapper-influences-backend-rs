@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::{
     error::AppError,
-    osu_api::{BeatmapEnum, CombinedRequester, GetID},
+    osu_api::{cached_requester::CombinedRequester, BeatmapEnum, GetID},
 };
 
 pub mod activity;

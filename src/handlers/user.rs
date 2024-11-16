@@ -8,8 +8,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    database::user::User, error::AppError, jwt::AuthData, osu_api::cached_osu_user_request,
-    AppState,
+    database::user::User, error::AppError, jwt::AuthData,
+    osu_api::cached_requester::cached_osu_user_request, AppState,
 };
 
 use super::{swap_beatmaps, PathBeatmapId, PathUserId};
