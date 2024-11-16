@@ -26,7 +26,7 @@ use crate::{
     error::AppError,
     osu_api::{BeatmapEnum, CombinedRequester, CredentialsGrantClient, GetID},
     retry::Retryable,
-    AppState,
+    schema_with, AppState,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
@@ -35,6 +35,7 @@ pub struct Activity {
     user: UserSmall,
     #[schemars(with = "chrono::DateTime<chrono::Utc>")]
     created_at: Datetime,
+    #[schemars(with = "schema_with::FlattenedActivityType")]
     #[serde(flatten)]
     activity_type: ActivityType,
 }

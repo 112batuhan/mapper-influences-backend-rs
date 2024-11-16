@@ -19,6 +19,7 @@ pub mod handlers;
 pub mod jwt;
 pub mod osu_api;
 pub mod retry;
+pub mod schema_with;
 
 pub struct AppState {
     pub db: Arc<DatabaseClient>,
