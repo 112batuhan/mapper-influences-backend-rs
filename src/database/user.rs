@@ -88,6 +88,36 @@ impl From<UserOsu> for UserSmall {
         }
     }
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ActivityPreferences {
+    pub add_influence: bool,
+    pub add_influence_beatmap: bool,
+    pub add_user_beatmap: bool,
+    pub edit_bio: bool,
+    pub edit_influence_description: bool,
+    pub edit_influence_type: bool,
+    pub login: bool,
+    pub remove_influence: bool,
+    pub remove_influence_beatmap: bool,
+    pub remove_user_beatmap: bool,
+}
+
+impl Default for ActivityPreferences {
+    fn default() -> Self {
+        Self {
+            add_influence: true,
+            add_influence_beatmap: true,
+            add_user_beatmap: true,
+            edit_bio: true,
+            edit_influence_description: true,
+            edit_influence_type: true,
+            login: false,
+            remove_influence: false,
+            remove_influence_beatmap: false,
+            remove_user_beatmap: false,
+        }
+    }
+}
 
 impl DatabaseClient {
     pub async fn upsert_user(
@@ -299,5 +329,82 @@ impl DatabaseClient {
             .await?
             .take(0)?;
         Ok(users)
+    }
+
+    pub async fn set_activity_preferences(
+        &self,
+        user_id: u32,
+        preferences: ActivityPreferences,
+    ) -> Result<ActivityPreferences, AppError> {
+        let query = r#"
+            IF $thing.activity_preference != NONE {
+                RETURN UPDATE ONLY $thing.activity_preference SET
+                    add_influence = $add_influence,
+                    add_influence_beatmap = $add_influence_beatmap,
+                    add_user_beatmap = $add_user_beatmap,
+                    edit_bio = $edit_bio,
+                    edit_influence_description = $edit_influence_description,
+                    edit_influence_type = $edit_influence_type,
+                    login = $login,
+                    remove_influence = $remove_influence,
+                    remove_influence_beatmap = $remove_influence_beatmap,
+                    remove_user_beatmap = $remove_user_beatmap;
+            } ELSE {
+                LET $created_preference = (CREATE ONLY activity_preference SET
+                    add_influence = $add_influence,
+                    add_influence_beatmap = $add_influence_beatmap,
+                    add_user_beatmap = $add_user_beatmap,
+                    edit_bio = $edit_bio,
+                    edit_influence_description = $edit_influence_description,
+                    edit_influence_type = $edit_influence_type,
+                    login = $login,
+                    remove_influence = $remove_influence,
+                    remove_influence_beatmap = $remove_influence_beatmap,
+                    remove_user_beatmap = $remove_user_beatmap
+                );
+                UPDATE ONLY $thing SET activity_preference = $created_preference.id;
+                RETURN $created_preference;
+            };
+        "#;
+
+        let preferences: Option<ActivityPreferences> = self
+            .db
+            .query(query)
+            .bind(("thing", numerical_thing("user", user_id)))
+            .bind(("add_influence", preferences.add_influence))
+            .bind(("add_influence_beatmap", preferences.add_influence_beatmap))
+            .bind(("add_user_beatmap", preferences.add_user_beatmap))
+            .bind(("edit_bio", preferences.edit_bio))
+            .bind((
+                "edit_influence_description",
+                preferences.edit_influence_description,
+            ))
+            .bind(("edit_influence_type", preferences.edit_influence_type))
+            .bind(("login", preferences.login))
+            .bind(("remove_influence", preferences.remove_influence))
+            .bind((
+                "remove_influence_beatmap",
+                preferences.remove_influence_beatmap,
+            ))
+            .bind(("remove_user_beatmap", preferences.remove_user_beatmap))
+            .await?
+            .take(0)?;
+
+        preferences.ok_or(AppError::ActivityPreferencesQuery)
+    }
+
+    /// Returns an [`ActivityPreferences`] directly if the data is in DB.
+    /// If not, then returns the default value (moving this logic to handler would make more sense)
+    pub async fn get_activity_preferences(
+        &self,
+        user_id: u32,
+    ) -> Result<ActivityPreferences, AppError> {
+        let preferences: Option<ActivityPreferences> = self
+            .db
+            .query("SELECT * FROM $thing.activity_preference")
+            .bind(("thing", numerical_thing("user", user_id)))
+            .await?
+            .take(0)?;
+        Ok(preferences.unwrap_or_default())
     }
 }

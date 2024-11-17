@@ -65,6 +65,9 @@ pub enum AppError {
 
     #[error("Std IO error: {0}")]
     StdIO(#[from] std::io::Error),
+
+    #[error("Error in activity preferences query")]
+    ActivityPreferencesQuery,
 }
 
 #[derive(Serialize)]
@@ -89,6 +92,7 @@ impl IntoResponse for AppError {
             | AppError::ActivityStreamClosed
             | AppError::SurrealDbSerialization(_)
             | AppError::StdIO(_)
+            | AppError::ActivityPreferencesQuery
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie
             | AppError::JwtVerification

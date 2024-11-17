@@ -200,7 +200,7 @@ async fn main() {
     //db.get_inner_ref().query("delete activity").await.unwrap();
 
     let mut handlers = Vec::new();
-    let arc_db = Arc::new(db);
+    let arc_db = db.clone();
     for user in full_users {
         let order_vec: Vec<u32> = user
             .user
@@ -223,5 +223,6 @@ async fn main() {
     }
     join_all(handlers).await;
     println!("custom order insertion done");
+
     println!("done");
 }

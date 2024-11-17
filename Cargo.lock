@@ -2647,7 +2647,6 @@ dependencies = [
  "axum-extra",
  "axum-swagger-ui",
  "axum-test",
- "base64 0.22.1",
  "bytes",
  "cached",
  "chrono",
