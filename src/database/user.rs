@@ -88,7 +88,7 @@ impl From<UserOsu> for UserSmall {
         }
     }
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ActivityPreferences {
     pub add_influence: bool,
     pub add_influence_beatmap: bool,
