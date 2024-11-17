@@ -18,10 +18,19 @@ static REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
     std::env::var("REDIRECT_URI").expect("Missing REDIRECT_URI environment variable")
 });
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct OsuAuthToken {
     pub access_token: String,
     pub expires_in: u32,
+}
+
+impl OsuAuthToken {
+    pub fn test() -> Self {
+        Self {
+            access_token: String::new(),
+            expires_in: 100000,
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]

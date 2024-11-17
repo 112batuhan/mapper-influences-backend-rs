@@ -7,7 +7,9 @@ use axum::{
     Extension, Json,
 };
 use axum_swagger_ui::swagger_ui;
-use mapper_influences_backend_rs::{osu_api::request::OsuApiRequestClient, routes, AppState};
+use mapper_influences_backend_rs::{
+    database::DatabaseClient, osu_api::request::OsuApiRequestClient, routes, AppState,
+};
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -22,8 +24,13 @@ async fn main() {
         .init();
 
     // initializing client wrappers and state
+    let url = std::env::var("SURREAL_URL").expect("Missing SURREAL_URL environment variable");
+    let db = DatabaseClient::new(&url)
+        .await
+        .expect("failed to initialize db connection");
+
     let request = Arc::new(OsuApiRequestClient::new(10));
-    let state = AppState::new(request).await;
+    let state = AppState::new(request, db).await;
 
     aide::gen::on_error(|error| {
         println!("{error}");

@@ -36,16 +36,10 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn new(request: Arc<dyn Requester>) -> Arc<AppState> {
+    pub async fn new(request: Arc<dyn Requester>, db: Arc<DatabaseClient>) -> Arc<AppState> {
         let credentials_grant_client = CredentialsGrantClient::new(request.clone())
             .await
             .expect("Failed to initialize credentials grant client");
-
-        let db = Arc::new(
-            DatabaseClient::new()
-                .await
-                .expect("failed to initialize db connection"),
-        );
 
         let cached_combined_requester =
             CombinedRequester::new(request.clone(), "https://osu.ppy.sh");

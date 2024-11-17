@@ -1,13 +1,13 @@
 use common::init_test_env;
 use http::header::COOKIE;
-use mapper_influences_backend_rs::handlers::auth::AdminLogin;
+use mapper_influences_backend_rs::{database::user::User, handlers::auth::AdminLogin};
 
 mod common;
 
 #[tokio::test]
-async fn test_beatmap_leaderboard() {
+async fn test_user_beatmap_add() {
     const TEST_LABEL: &str = "UserBeatmapAdd";
-    let (test_server, test_requester) = init_test_env(TEST_LABEL).await;
+    let (test_server, test_requester, _testcontainer_handle) = init_test_env(TEST_LABEL).await;
 
     let oauth_body = AdminLogin::new(std::env::var("ADMIN_PASSWORD").unwrap(), 2);
     let jwt = test_server
@@ -16,11 +16,11 @@ async fn test_beatmap_leaderboard() {
         .await
         .text();
 
-    let result = test_server
+    let result: User = test_server
         .patch("/users/map/4776938")
         .add_header(COOKIE, format!("user_token={}", jwt))
         .await
-        .text();
+        .json();
 
     dbg!(result);
     test_requester.save_cache().expect("failed to save cache");

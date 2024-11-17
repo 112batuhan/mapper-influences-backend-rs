@@ -131,7 +131,7 @@ impl Requester for OsuApiTestClient {
     }
     async fn get_client_credentials_token(&self) -> Result<OsuAuthToken, AppError> {
         match &self.client_mod {
-            ClientMod::Replay => Ok(OsuAuthToken::default()),
+            ClientMod::Replay => Ok(OsuAuthToken::test()),
             ClientMod::Record => Ok(self.working_client.get_client_credentials_token().await?),
         }
     }

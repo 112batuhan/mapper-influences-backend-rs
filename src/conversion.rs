@@ -154,7 +154,10 @@ async fn main() {
     let path = "./conversion/influences.json";
     let influences: Vec<Influence> = read_json_file(path);
 
-    let db = DatabaseClient::new().await.unwrap();
+    let url = std::env::var("SURREAL_URL").expect("Missing SURREAL_URL environment variable");
+    let db = DatabaseClient::new(&url)
+        .await
+        .expect("failed to initialize db connection");
 
     // WARN: BE EXTREMELY CAUTIOUS WITH THIS!!!!
     // YOU MIGHT ACCIDENTALLY DELETE PROD DATA

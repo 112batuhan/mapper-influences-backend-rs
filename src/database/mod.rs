@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use surrealdb::{
     engine::remote::ws::{Client, Ws, Wss},
     opt::auth::Root,
@@ -18,9 +20,7 @@ pub struct DatabaseClient {
 }
 
 impl DatabaseClient {
-    pub async fn new() -> Result<DatabaseClient, AppError> {
-        let url = std::env::var("SURREAL_URL").expect("Missing SURREAL_URL environment variable");
-
+    pub async fn new(url: &str) -> Result<Arc<DatabaseClient>, AppError> {
         let client = if url.starts_with("wss://") {
             Surreal::new::<Wss>(
                 url.strip_prefix("wss://")
@@ -42,7 +42,7 @@ impl DatabaseClient {
             })
             .await?;
         client.use_ns("test").use_db("test").await?;
-        Ok(DatabaseClient { db: client })
+        Ok(Arc::new(DatabaseClient { db: client }))
     }
     pub fn get_inner_ref(&self) -> &Surreal<Client> {
         &self.db
