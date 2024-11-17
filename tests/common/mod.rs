@@ -7,10 +7,7 @@ use axum::{
 };
 use axum_test::TestServer;
 use mapper_influences_backend_rs::{
-    database::DatabaseClient,
-    handlers,
-    osu_api::request::{OsuApiRequestClient, Requester},
-    AppState,
+    database::DatabaseClient, handlers, osu_api::request::OsuApiRequestClient, AppState,
 };
 use osu_test_client::OsuApiTestClient;
 use surrealdb_migrations::MigrationRunner;

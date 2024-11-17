@@ -16,12 +16,11 @@ async fn test_user_beatmap_add() {
         .await
         .text();
 
-    let result: User = test_server
+    let _result: User = test_server
         .patch("/users/map/4776938")
         .add_header(COOKIE, format!("user_token={}", jwt))
         .await
         .json();
 
-    dbg!(result);
     test_requester.save_cache().expect("failed to save cache");
 }

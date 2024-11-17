@@ -4,14 +4,18 @@ on:
   pull_request:
 
 jobs:
-  # there is no tests right now. I will enable this later along with configuration
-  # test:
-  #   name: test
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions-rust-lang/setup-rust-toolchain@v1
-  #     - run: cargo test --all-features
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    env:
+      SURREAL_USER: "backend"
+      SURREAL_PASS: "password"
+      JWT_SECRET_KEY: "something"
+      ADMIN_PASSWORD: "something" 
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo test --all-features
 
   formatting:
     name: fmt
