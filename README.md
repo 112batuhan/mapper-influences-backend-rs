@@ -39,7 +39,10 @@ It's a script to insert MongoDB data into SurrealDB. Don't use in production. I'
 `cargo run --bin conversion`
 
 ### How to run tests
-There isn't any tests yet so WIP 
+Tests utilize [Testcontainers](https://testcontainers.com/) to set up a new database for each test function. 
+Testcontainers is based on docker. So be sure to have docker installed.
+
+Then run `cargo test`
 
 ## How to satisfy taplo (what even is it?)
 [Taplo](https://taplo.tamasfe.dev/) is a toml file toolkit. You can format and check formatting of toml files. It even has an LSP!
