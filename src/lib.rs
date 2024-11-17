@@ -36,10 +36,11 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn new(
-        request: Arc<dyn Requester>,
-        credentials_grant_client: Arc<CredentialsGrantClient>,
-    ) -> AppState {
+    pub async fn new(request: Arc<dyn Requester>) -> Arc<AppState> {
+        let credentials_grant_client = CredentialsGrantClient::new(request.clone())
+            .await
+            .expect("Failed to initialize credentials grant client");
+
         let db = Arc::new(
             DatabaseClient::new()
                 .await
@@ -59,7 +60,7 @@ impl AppState {
         // TODO: better handle errors
         .expect("failed to initialize activity tracker");
 
-        AppState {
+        Arc::new(AppState {
             db,
             request: request.clone(),
             jwt: JwtUtil::new_jwt(),
@@ -69,7 +70,7 @@ impl AppState {
             user_leaderboard_cache: LeaderboardCache::new(300),
             beatmap_leaderboard_cache: LeaderboardCache::new(300),
             graph_cache: GraphCache::new(600),
-        }
+        })
     }
 }
 

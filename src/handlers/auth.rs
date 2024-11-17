@@ -11,7 +11,7 @@ use futures::try_join;
 use http::HeaderMap;
 use reqwest::header::SET_COOKIE;
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{error::AppError, AppState};
 
@@ -28,11 +28,17 @@ pub struct AuthQuery {
     code: String,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct AdminLogin {
     password: String,
     /// Id of their osu account. This is so that they can act as their own account
     id: u32,
+}
+
+impl AdminLogin {
+    pub fn new(password: String, id: u32) -> Self {
+        Self { password, id }
+    }
 }
 
 pub async fn osu_oauth2_redirect(

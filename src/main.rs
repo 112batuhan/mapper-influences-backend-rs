@@ -7,10 +7,7 @@ use axum::{
     Extension, Json,
 };
 use axum_swagger_ui::swagger_ui;
-use mapper_influences_backend_rs::{
-    osu_api::{credentials_grant::CredentialsGrantClient, request::OsuApiRequestClient},
-    routes, AppState,
-};
+use mapper_influences_backend_rs::{osu_api::request::OsuApiRequestClient, routes, AppState};
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -26,10 +23,7 @@ async fn main() {
 
     // initializing client wrappers and state
     let request = Arc::new(OsuApiRequestClient::new(10));
-    let client_credential_client = CredentialsGrantClient::new(request.clone())
-        .await
-        .expect("Failed to initialize credentials grant client");
-    let state = Arc::new(AppState::new(request, client_credential_client).await);
+    let state = AppState::new(request).await;
 
     aide::gen::on_error(|error| {
         println!("{error}");

@@ -43,7 +43,6 @@ impl<T: DeserializeOwned + GetID + Clone + Send + 'static> CachedRequester<T> {
             let mut cache = self.cache.lock().map_err(|_| AppError::Mutex)?;
             cache.get_multiple(ids)
         };
-
         // Request the missing items
         let misses_requested = self
             .client

@@ -47,3 +47,10 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [patch.crates-io]
 serde = { git = "https://github.com/frederik-uni/serde" }
+
+[dev-dependencies]
+axum-test = { version = "16.4.0", features = ["ws"] }
+# to resolve conflict with axum-test and surrealdb
+base64 = "0.22.1"
+flate2 = "1.0"
+uuid = "1.11"

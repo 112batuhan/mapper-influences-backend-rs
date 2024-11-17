@@ -62,6 +62,9 @@ pub enum AppError {
 
     #[error("Input string exceeds maximum length")]
     StringTooLong,
+
+    #[error("Std IO error: {0}")]
+    StdIO(#[from] std::io::Error),
 }
 
 #[derive(Serialize)]
@@ -85,6 +88,7 @@ impl IntoResponse for AppError {
             | AppError::TaskJoin(_)
             | AppError::ActivityStreamClosed
             | AppError::SurrealDbSerialization(_)
+            | AppError::StdIO(_)
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie
             | AppError::JwtVerification
@@ -92,7 +96,6 @@ impl IntoResponse for AppError {
             AppError::MissingLayerJson | AppError::StringTooLong => {
                 StatusCode::UNPROCESSABLE_ENTITY
             }
-
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {
                 StatusCode::NOT_FOUND
             }
