@@ -44,6 +44,9 @@ Testcontainers is based on docker. So be sure to have docker installed.
 
 Then run `cargo test`
 
+Tests record the osu! API responses into files. These files are then added to the repository to allow CI to work without 
+calling osu! API every time. So if you make changes to the tests, delete the files in `/tests/data` and run tests with osu! API requests.
+
 ## How to satisfy taplo (what even is it?)
 [Taplo](https://taplo.tamasfe.dev/) is a toml file toolkit. You can format and check formatting of toml files. It even has an LSP!
 
