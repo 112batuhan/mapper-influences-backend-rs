@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use itertools::Itertools;
 use schemars::JsonSchema;
@@ -65,9 +65,18 @@ pub struct PathUserTypeId {
     pub type_id: u8,
 }
 
+/// `BeatmapRequest` type
+#[derive(Deserialize, JsonSchema)]
+pub struct BeatmapRequest {
+    #[serde(rename = "beatmaps")]
+    ids: HashSet<u32>,
+}
+
 /// A shortcut to use in user and influence endpoints.
 /// This is not usable for multiple influences as this function would send requests for each
 /// influence. They have their own implementation to save requests
+///
+/// TODO: maybe even do it as middleware? you seem to repeat this. A little ambitious though
 async fn swap_beatmaps(
     cached_combined_requester: Arc<CombinedRequester>,
     osu_token: &str,
@@ -91,5 +100,27 @@ async fn swap_beatmaps(
         .collect();
 
     *beatmaps = new_beatmaps;
+    Ok(())
+}
+
+async fn check_multiple_maps(
+    cached_combined_requester: Arc<CombinedRequester>,
+    osu_token: &str,
+    beatmaps: &[u32],
+) -> Result<(), AppError> {
+    let requested_beatmaps = cached_combined_requester
+        .clone()
+        .get_beatmaps_only(beatmaps, osu_token)
+        .await?;
+
+    // efficient but not user friendly missing map warning
+    let first_missing_beatmap = requested_beatmaps
+        .keys()
+        .filter(|requested_map| !beatmaps.contains(requested_map))
+        .copied()
+        .next();
+    if let Some(first_missing_map) = first_missing_beatmap {
+        return Err(AppError::NonExistingMap(first_missing_map));
+    }
     Ok(())
 }

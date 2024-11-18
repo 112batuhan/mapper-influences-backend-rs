@@ -18,10 +18,15 @@ use testcontainers_modules::{
 
 pub mod osu_test_client;
 
+/// TODO: make it different so that we can have one place we have to change.
 /// Redefining routes because aide and axum_test is not compatible
 pub fn test_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
         .route("/search/map", get(handlers::osu_search::osu_beatmap_search))
+        .route(
+            "/search/map/:beatmap_id",
+            get(handlers::osu_search::osu_singular_beatmap_serch),
+        )
         .route(
             "/search/user/:query",
             get(handlers::osu_search::osu_user_search),
@@ -61,10 +66,7 @@ pub fn test_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/users/me", get(handlers::user::get_me))
         .route("/users/:user_id", get(handlers::user::get_user))
         .route("/users/bio", patch(handlers::user::update_user_bio))
-        .route(
-            "/users/map/:beatmap_id",
-            patch(handlers::user::add_user_beatmap),
-        )
+        .route("/users/map", patch(handlers::user::add_user_beatmap))
         .route(
             "/users/map/:beatmap_id",
             delete(handlers::user::delete_user_beatmap),
@@ -101,6 +103,8 @@ pub async fn init_test_env(
 ) -> (TestServer, Arc<OsuApiTestClient>, ContainerAsync<SurrealDb>) {
     dotenvy::dotenv().ok();
 
+    // Think of this as join handler. we need to keep the reference alive.
+    // Db closes when we drop this. Luckly it's enough to return this and forget.
     let surrealdb_container = SurrealDb::default()
         .with_authentication(false)
         .with_user("backend")

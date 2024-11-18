@@ -229,16 +229,16 @@ impl DatabaseClient {
     pub async fn add_beatmap_to_user(
         &self,
         user_id: u32,
-        beatmap_id: u32,
+        beatmap_ids: Vec<u32>,
     ) -> Result<User, AppError> {
         let user: Option<User> = self
             .db
             .query(format!(
-                "UPDATE $thing SET beatmaps += $beatmap_id RETURN {}",
+                "UPDATE $thing SET beatmaps += $beatmap_ids RETURN {}",
                 self.single_user_return_string()
             ))
             .bind(("thing", numerical_thing("user", user_id)))
-            .bind(("beatmap_id", beatmap_id))
+            .bind(("beatmap_ids", beatmap_ids))
             .await?
             .take(0)?;
 

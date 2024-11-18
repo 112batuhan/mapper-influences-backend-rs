@@ -80,6 +80,16 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             }),
         )
         .api_route(
+            "/search/map/:beatmap_id",
+            get_with(handlers::osu_search::osu_singular_beatmap_serch, |op| {
+                op.tag("Search").description(
+                    "Returns a single map for manual beatmap id field. 
+                    Don't confuse it with `/search/map` endpoint which doesn't 
+                    have path parameter",
+                )
+            }),
+        )
+        .api_route(
             "/search/user/:query",
             get_with(handlers::osu_search::osu_user_search, |op| op.tag("Search")),
         )
@@ -106,7 +116,7 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             }),
         )
         .api_route(
-            "/influence/:influenced_to/map/:beatmap_id",
+            "/influence/:influenced_to/map",
             patch_with(handlers::influence::add_influence_beatmap, |op| {
                 op.tag("Influence")
             }),
@@ -142,7 +152,7 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             patch_with(handlers::user::update_user_bio, |op| op.tag("User")),
         )
         .api_route(
-            "/users/map/:beatmap_id",
+            "/users/map",
             patch_with(handlers::user::add_user_beatmap, |op| op.tag("User")),
         )
         .api_route(

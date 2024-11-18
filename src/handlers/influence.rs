@@ -17,8 +17,8 @@ use crate::{
 };
 
 use super::{
-    swap_beatmaps, PaginationQuery, PathInfluencedTo, PathUserBeatmapIds, PathUserId,
-    PathUserTypeId,
+    check_multiple_maps, swap_beatmaps, BeatmapRequest, PaginationQuery, PathInfluencedTo,
+    PathUserBeatmapIds, PathUserId, PathUserTypeId,
 };
 
 #[derive(Deserialize, JsonSchema)]
@@ -26,24 +26,48 @@ pub struct Description {
     description: String,
 }
 
+/// `InfluenceCreationOptions` type. Optional fields to override defaults
+#[derive(Deserialize, JsonSchema)]
+pub struct InfluenceCreationOptions {
+    pub influence_type: Option<u8>,
+    pub description: Option<String>,
+    pub beatmaps: Option<Vec<u32>>,
+}
+
 pub async fn add_influence(
     Path(influenced_to): Path<PathInfluencedTo>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
+    Json(options): Json<InfluenceCreationOptions>,
 ) -> Result<Json<Influence>, AppError> {
     let target_user = state
         .request
         .get_user_osu(&auth_data.osu_token, influenced_to.value)
         .await?;
 
-    // We don't need to swap beatmaps here
-    // There should be no maps in fresh influence relations
-    let (_, influence) = try_join!(
+    if let Some(influence_beatmaps) = &options.beatmaps {
+        check_multiple_maps(
+            state.cached_combined_requester.clone(),
+            &auth_data.osu_token,
+            influence_beatmaps,
+        )
+        .await?;
+    }
+
+    let (_, mut influence) = try_join!(
         state.db.upsert_user(target_user, false),
         state
             .db
-            .add_influence_relation(auth_data.user_id, influenced_to.value)
+            .add_influence_relation(auth_data.user_id, influenced_to.value, options)
     )?;
+
+    swap_beatmaps(
+        state.cached_combined_requester.clone(),
+        &auth_data.osu_token,
+        &mut influence.beatmaps,
+    )
+    .await?;
+
     Ok(Json(influence))
 }
 
@@ -67,23 +91,22 @@ pub async fn delete_influence(
 }
 
 pub async fn add_influence_beatmap(
-    Path(path): Path<PathUserBeatmapIds>,
+    Path(path): Path<PathInfluencedTo>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
+    Json(beatmaps): Json<BeatmapRequest>,
 ) -> Result<Json<Influence>, AppError> {
-    let beatmap = state
-        .cached_combined_requester
-        .clone()
-        .get_beatmaps_only(&[path.beatmap_id], &auth_data.osu_token)
-        .await?;
-
-    if beatmap.is_empty() {
-        return Err(AppError::NonExistingMap(path.beatmap_id));
-    }
+    let beatmaps: Vec<u32> = beatmaps.ids.into_iter().collect();
+    check_multiple_maps(
+        state.cached_combined_requester.clone(),
+        &auth_data.osu_token,
+        &beatmaps,
+    )
+    .await?;
 
     let mut influence = state
         .db
-        .add_beatmap_to_influence(auth_data.user_id, path.influenced_to, path.beatmap_id)
+        .add_beatmap_to_influence(auth_data.user_id, path.value, beatmaps)
         .await?;
 
     swap_beatmaps(

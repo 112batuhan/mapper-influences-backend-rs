@@ -15,12 +15,13 @@ use crate::{
     error::AppError,
     jwt::AuthData,
     osu_api::{
-        cached_requester::cached_osu_user_request, BaseBeatmapset, BeatmapOsu, OsuMultipleUser,
+        cached_requester::cached_osu_user_request, BaseBeatmapset, BeatmapOsu, OsuBeatmapSmall,
+        OsuMultipleUser,
     },
     AppState,
 };
 
-use super::PathQuery;
+use super::{PathBeatmapId, PathQuery};
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 /// `SearchBeatmapset` type. For more compact beatmap search results
@@ -159,4 +160,22 @@ pub async fn osu_beatmap_search(
         .collect();
 
     Ok(Json(beatmap_search))
+}
+
+pub async fn osu_singular_beatmap_serch(
+    Path(beatmap_path): Path<PathBeatmapId>,
+    Extension(auth_data): Extension<AuthData>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<OsuBeatmapSmall>, AppError> {
+    let beatmap_map = state
+        .cached_combined_requester
+        .clone()
+        .get_beatmaps_with_user(&[beatmap_path.value], &auth_data.osu_token)
+        .await?;
+
+    beatmap_map
+        .into_values()
+        .map(Json)
+        .next()
+        .ok_or(AppError::NonExistingMap(beatmap_path.value))
 }

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::AppError,
+    handlers::influence::InfluenceCreationOptions,
     osu_api::{BeatmapEnum, OsuBeatmapSmall},
 };
 
@@ -43,15 +44,26 @@ impl DatabaseClient {
         &self,
         user_id: u32,
         target_user_id: u32,
+        options: InfluenceCreationOptions,
     ) -> Result<Influence, AppError> {
         let influence: Option<Influence> = self
             .db
             .query(format!(
-                "RELATE $user->influenced_by->$target RETURN {}",
+                "
+                RELATE $user->influenced_by->$target
+                SET 
+                    description = $description,
+                    influence_type = $influence_type,
+                    beatmaps = $beatmaps
+                RETURN {}
+                ",
                 self.single_influence_return_string()
             ))
             .bind(("user", numerical_thing("user", user_id)))
             .bind(("target", numerical_thing("user", target_user_id)))
+            .bind(("description", options.description))
+            .bind(("influence_type", options.influence_type))
+            .bind(("beatmaps", options.beatmaps))
             .await?
             .take(0)?;
         influence.ok_or(AppError::MissingInfluence)
@@ -82,20 +94,20 @@ impl DatabaseClient {
         &self,
         own_user_id: u32,
         target_user_id: u32,
-        beatmap_id: u32,
+        beatmap_ids: Vec<u32>,
     ) -> Result<Influence, AppError> {
         let influence: Option<Influence> = self
             .db
             .query(format!(
                 "
-                UPDATE $own_user->influenced_by SET beatmaps += $beatmap_id WHERE out=$target_user 
+                UPDATE $own_user->influenced_by SET beatmaps += $beatmap_ids WHERE out=$target_user 
                 RETURN {}
                 ",
                 self.single_influence_return_string()
             ))
             .bind(("own_user", numerical_thing("user", own_user_id)))
             .bind(("target_user", numerical_thing("user", target_user_id)))
-            .bind(("beatmap_id", beatmap_id))
+            .bind(("beatmap_ids", beatmap_ids))
             .await?
             .take(0)?;
         influence.ok_or(AppError::MissingInfluence)

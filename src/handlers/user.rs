@@ -12,7 +12,7 @@ use crate::{
     osu_api::cached_requester::cached_osu_user_request, AppState,
 };
 
-use super::{swap_beatmaps, PathBeatmapId, PathUserId};
+use super::{check_multiple_maps, swap_beatmaps, BeatmapRequest, PathBeatmapId, PathUserId};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Bio {
@@ -38,7 +38,7 @@ pub async fn get_me(
     Ok(Json(user))
 }
 
-/// Returns a database user, If the user is not in database, then returns a osu! API response
+/// Returns a database user, If the user is not in database, then returns an osu! API response
 pub async fn get_user(
     Extension(auth_data): Extension<AuthData>,
     Path(user_id): Path<PathUserId>,
@@ -58,22 +58,6 @@ pub async fn get_user(
         Ok(data) => data,
     };
 
-    swap_beatmaps(
-        state.cached_combined_requester.clone(),
-        &auth_data.osu_token,
-        &mut user.beatmaps,
-    )
-    .await?;
-    Ok(Json(user))
-}
-
-// TODO: talk about this with fursum
-pub async fn get_user_without_auth(
-    Extension(auth_data): Extension<AuthData>,
-    Path(user_id): Path<PathUserId>,
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<User>, AppError> {
-    let mut user = state.db.get_user_details(user_id.value).await?;
     swap_beatmaps(
         state.cached_combined_requester.clone(),
         &auth_data.osu_token,
@@ -103,23 +87,21 @@ pub async fn update_user_bio(
 }
 
 pub async fn add_user_beatmap(
-    Path(beatmap_id): Path<PathBeatmapId>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
+    Json(beatmaps): Json<BeatmapRequest>,
 ) -> Result<Json<User>, AppError> {
-    let beatmap = state
-        .cached_combined_requester
-        .clone()
-        .get_beatmaps_only(&[beatmap_id.value], &auth_data.osu_token)
-        .await?;
-
-    if beatmap.is_empty() {
-        return Err(AppError::NonExistingMap(beatmap_id.value));
-    }
+    let beatmaps: Vec<u32> = beatmaps.ids.into_iter().collect();
+    check_multiple_maps(
+        state.cached_combined_requester.clone(),
+        &auth_data.osu_token,
+        &beatmaps,
+    )
+    .await?;
 
     let mut user = state
         .db
-        .add_beatmap_to_user(auth_data.user_id, beatmap_id.value)
+        .add_beatmap_to_user(auth_data.user_id, beatmaps)
         .await?;
     swap_beatmaps(
         state.cached_combined_requester.clone(),
