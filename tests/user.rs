@@ -1,6 +1,9 @@
 use common::init_test_env;
 use http::header::COOKIE;
-use mapper_influences_backend_rs::{database::user::User, handlers::auth::AdminLogin};
+use mapper_influences_backend_rs::{
+    database::user::User,
+    handlers::{auth::AdminLogin, BeatmapRequest},
+};
 
 mod common;
 
@@ -17,8 +20,11 @@ async fn test_user_beatmap_add() {
         .text();
 
     let _result: User = test_server
-        .patch("/users/map/4776938")
+        .patch("/users/map")
         .add_header(COOKIE, format!("user_token={}", jwt))
+        .json(&BeatmapRequest {
+            ids: vec![4823239, 4606684, 4606684].into_iter().collect(),
+        })
         .await
         .json();
 

@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use itertools::Itertools;
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     error::AppError,
@@ -28,8 +28,6 @@ fn default_limit() -> u32 {
     100
 }
 
-// TODO: good opportunity to try macros?
-// needed for aide documentation
 #[derive(Deserialize, JsonSchema)]
 pub struct PathInfluencedTo {
     #[serde(rename = "influenced_to")]
@@ -66,10 +64,10 @@ pub struct PathUserTypeId {
 }
 
 /// `BeatmapRequest` type
-#[derive(Deserialize, JsonSchema)]
+#[derive(Deserialize, Serialize, JsonSchema)]
 pub struct BeatmapRequest {
     #[serde(rename = "beatmaps")]
-    ids: HashSet<u32>,
+    pub ids: HashSet<u32>,
 }
 
 /// A shortcut to use in user and influence endpoints.
