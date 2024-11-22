@@ -1,6 +1,15 @@
 version: '3'
 
 services:
+  # HACKY WAY TO GET VOLUME WORKING
+  # DON'T DO IT IN PRODUCTION
+  init-data:
+    image: busybox
+    command: chmod -R 777 /data
+    volumes:
+      - surrealdb-data:/data
+
+
   surrealdb:
     image: surrealdb/surrealdb:latest
     env_file:
@@ -14,8 +23,16 @@ services:
       - $SURREAL_PASS
       - --log
       - debug
+      - rocksdb://data
     ports:
       - "8100:8000"
+    networks:
+      - mapper-influences-rs 
+    volumes:
+      - surrealdb-data:/data
+    depends_on:
+      init-data:
+        condition: service_completed_successfully
 
   mapper_influences_backend:
     build:
@@ -27,8 +44,12 @@ services:
       - surrealdb
     ports:
       - "${PORT}:${PORT}"
+    networks:
+      - mapper-influences-rs 
+
     environment:
-      SURREAL_URL: $SURREAL_URL
+      # Docker internal port 
+      SURREAL_URL: ws://surrealdb:8000 
       CLIENT_ID: $CLIENT_ID
       CLIENT_SECRET: $CLIENT_SECRET
       REDIRECT_URI: $REDIRECT_URI
@@ -36,3 +57,9 @@ services:
       JWT_SECRET_KEY: $JWT_SECRET_KEY
       PORT: $PORT
       ADMIN_PASSWORD: $ADMIN_PASSWORD
+
+networks:
+  mapper-influences-rs:
+
+volumes:
+  surrealdb-data:
