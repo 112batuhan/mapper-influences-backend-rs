@@ -109,7 +109,7 @@ pub async fn init_test_env(
         .with_authentication(false)
         .with_user("backend")
         .with_password("password")
-        .with_tag("v2.0.4")
+        .with_tag("v2.1.0")
         .start()
         .await
         .unwrap();
