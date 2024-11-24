@@ -2,6 +2,7 @@ use std::{error::Error, time::Duration};
 
 use futures::Future;
 
+// TODO: use asycn_traits now that you imported it anyway?
 pub trait Retryable {
     type Value: Send;
     type Err: Error + Send;

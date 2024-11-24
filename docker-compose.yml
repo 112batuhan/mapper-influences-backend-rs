@@ -9,18 +9,15 @@ services:
     volumes:
       - surrealdb-data:/data
 
-
   surrealdb:
     image: surrealdb/surrealdb:latest
-    env_file:
-      - .env
     entrypoint:
       - /surreal
       - start
       - --user
-      - $SURREAL_USER
+      - backend
       - --pass
-      - $SURREAL_PASS
+      - password
       - --log
       - debug
       - rocksdb://data
@@ -42,21 +39,25 @@ services:
       - .env
     depends_on:
       - surrealdb
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
     ports:
       - "${PORT}:${PORT}"
     networks:
       - mapper-influences-rs 
-
     environment:
-      # Docker internal port 
-      SURREAL_URL: ws://surrealdb:8000 
+      SURREAL_USER: backend
+      SURREAL_PASS: password
+      SURREAL_URL: ws://surrealdb:8000 # Docker internal port 
+      REDIRECT_URI: http://localhost:8000/oauth/osu-redirect
+      POST_LOGIN_REDIRECT_URI: http://localhost:3000/dashboard
+      JWT_SECRET_KEY: localkey
+      ADMIN_PASSWORD: localpass
+      PORT: 8000
       CLIENT_ID: $CLIENT_ID
       CLIENT_SECRET: $CLIENT_SECRET
-      REDIRECT_URI: $REDIRECT_URI
-      POST_LOGIN_REDIRECT_URI: $POST_LOGIN_REDIRECT_URI
-      JWT_SECRET_KEY: $JWT_SECRET_KEY
-      PORT: $PORT
-      ADMIN_PASSWORD: $ADMIN_PASSWORD
 
 networks:
   mapper-influences-rs:
