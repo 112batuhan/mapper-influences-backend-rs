@@ -58,6 +58,7 @@ impl DatabaseClient {
                     ORDER BY count DESC
                     )
                 WHERE $country = none or out.country_code = $country
+                ORDER count DESC
                 LIMIT $limit
                 START $start;
                 ",

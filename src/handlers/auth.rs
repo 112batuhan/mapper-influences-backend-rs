@@ -61,7 +61,8 @@ pub async fn osu_oauth2_redirect(
         auth_response.expires_in,
     )?;
     let mut redirect_response = Redirect::to(POST_LOGIN_REDIRECT_URI.as_str()).into_response();
-    redirect_response.headers_mut().insert(
+    let headers = redirect_response.headers_mut();
+    headers.append(
         SET_COOKIE,
         format!(
             "user_token={}; HttpOnly; Max-Age=86400; Path=/; SameSite=lax",
@@ -69,6 +70,12 @@ pub async fn osu_oauth2_redirect(
         )
         .parse()
         .unwrap(),
+    );
+    headers.append(
+        SET_COOKIE,
+        "logged_in=true;Max-Age=86400; Path=/; SameSite=lax"
+            .parse()
+            .unwrap(),
     );
 
     // TODO: maybe fix authorized thing to be in the same query later?
@@ -87,9 +94,15 @@ pub fn osu_oauth2_redirect_docs(op: TransformOperation<'_>) -> TransformOperatio
 
 pub async fn logout() -> Response {
     let mut headers = HeaderMap::new();
-    headers.insert(
+    headers.append(
         SET_COOKIE,
         "user_token=deleted; HttpOnly; Max-Age=-1; Path=/; SameSite=lax"
+            .parse()
+            .unwrap(),
+    );
+    headers.append(
+        SET_COOKIE,
+        "logged_in=false; Max-Age=-1; Path=/; SameSite=lax"
             .parse()
             .unwrap(),
     );

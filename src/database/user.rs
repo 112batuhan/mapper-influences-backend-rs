@@ -387,7 +387,7 @@ impl DatabaseClient {
     pub async fn get_users_to_update(&self) -> Result<Vec<u32>, AppError> {
         let ids: Vec<DbUserId> = self
             .db
-            .query("SELECT meta::id(id) as id FROM user WHERE updated_at + 1s < time::now()")
+            .query("SELECT meta::id(id) as id FROM user WHERE updated_at + 1w < time::now()")
             .await?
             .take(0)?;
 

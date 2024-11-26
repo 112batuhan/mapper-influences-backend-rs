@@ -47,7 +47,7 @@ pub async fn update_routine(
             client.clone(),
             database.clone(),
             users_to_update,
-            Duration::from_secs(15),
+            Duration::from_secs(60),
         )
         .await;
     }

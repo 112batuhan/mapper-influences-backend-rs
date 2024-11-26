@@ -9,7 +9,7 @@ use axum::{
 use axum_swagger_ui::swagger_ui;
 use mapper_influences_backend_rs::{
     daily_update::update_routine,
-    database::{user::ActivityPreferences, DatabaseClient},
+    database::DatabaseClient,
     osu_api::{credentials_grant::CredentialsGrantClient, request::OsuApiRequestClient},
     routes, AppState,
 };
@@ -30,19 +30,25 @@ async fn main() {
     let db = DatabaseClient::new(&url)
         .await
         .expect("failed to initialize db connection");
-
     let request = Arc::new(OsuApiRequestClient::new(10));
     let credentials_grant_client = CredentialsGrantClient::new(request.clone())
         .await
         .expect("Failed to initialize credentials grant client");
-
     let state = AppState::new(request, credentials_grant_client.clone(), db.clone()).await;
 
-    tokio::spawn(update_routine(
-        credentials_grant_client,
-        db.clone(),
-        Duration::from_secs(120),
-    ));
+    let start_var = std::env::var("DAILY_UPDATE");
+    if start_var.is_ok_and(|value| value.to_lowercase() == "true") {
+        let initial_delay = 10;
+        info!(
+            "starting daily updates after initial delay of {} seconds",
+            initial_delay,
+        );
+        tokio::spawn(update_routine(
+            credentials_grant_client,
+            db.clone(),
+            Duration::from_secs(initial_delay),
+        ));
+    }
 
     aide::gen::on_error(|error| {
         println!("{error}");
