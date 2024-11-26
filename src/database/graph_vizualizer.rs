@@ -17,6 +17,7 @@ pub struct GraphUser {
 pub struct GraphInfluence {
     source: u32,
     target: u32,
+    influence_type: u8,
 }
 
 impl DatabaseClient {
@@ -41,7 +42,7 @@ impl DatabaseClient {
     pub async fn get_influences_for_graph(&self) -> Result<Vec<GraphInfluence>, AppError> {
         let graph_influences: Vec<GraphInfluence> = self
             .db
-            .query("SELECT meta::id(in) AS source, meta::id(out) AS target FROM influenced_by;")
+            .query("SELECT meta::id(in) AS source, meta::id(out), influence_type AS target FROM influenced_by;")
             .await?
             .take(0)?;
         Ok(graph_influences)

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
+
 use surrealdb::{method::QueryStream, Notification};
 
 use crate::{error::AppError, handlers::activity::Activity, retry::Retryable};
@@ -83,9 +85,8 @@ impl DatabaseClient {
     }
 }
 
-impl Retryable for Arc<DatabaseClient> {
-    type Value = QueryStream<Notification<Activity>>;
-    type Err = AppError;
+#[async_trait]
+impl Retryable<QueryStream<Notification<Activity>>, AppError> for Arc<DatabaseClient> {
     async fn retry(&mut self) -> Result<QueryStream<Notification<Activity>>, AppError> {
         self.start_activity_stream().await
     }

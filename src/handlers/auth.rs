@@ -70,10 +70,14 @@ pub async fn osu_oauth2_redirect(
         .parse()
         .unwrap(),
     );
+
+    // TODO: maybe fix authorized thing to be in the same query later?
+    let osu_user_id = osu_user.id;
     try_join!(
-        state.db.add_login_activity(osu_user.id),
-        state.db.upsert_user(osu_user, true)
+        state.db.add_login_activity(osu_user_id),
+        state.db.upsert_user(osu_user)
     )?;
+    state.db.set_authenticated(osu_user_id).await?;
     Ok(redirect_response)
 }
 

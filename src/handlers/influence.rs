@@ -27,22 +27,26 @@ pub struct Description {
 }
 
 /// `InfluenceCreationOptions` type. Optional fields to override defaults
+/// TODO: for the love of god, let's fix this rename later
 #[derive(Deserialize, JsonSchema)]
 pub struct InfluenceCreationOptions {
     pub influence_type: Option<u8>,
     pub description: Option<String>,
     pub beatmaps: Option<Vec<u32>>,
+    #[serde(rename = "userId")]
+    pub user_id: String,
 }
 
 pub async fn add_influence(
-    Path(influenced_to): Path<PathInfluencedTo>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
     Json(options): Json<InfluenceCreationOptions>,
 ) -> Result<Json<Influence>, AppError> {
+    let influenced_to = options.user_id.parse::<u32>()?;
+
     let target_user = state
         .request
-        .get_user_osu(&auth_data.osu_token, influenced_to.value)
+        .get_user_osu(&auth_data.osu_token, influenced_to)
         .await?;
 
     if let Some(influence_beatmaps) = &options.beatmaps {
@@ -55,10 +59,10 @@ pub async fn add_influence(
     }
 
     let (_, mut influence) = try_join!(
-        state.db.upsert_user(target_user, false),
+        state.db.upsert_user(target_user),
         state
             .db
-            .add_influence_relation(auth_data.user_id, influenced_to.value, options)
+            .add_influence_relation(auth_data.user_id, influenced_to, options)
     )?;
 
     swap_beatmaps(

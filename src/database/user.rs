@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -5,6 +8,7 @@ use surrealdb::sql::Thing;
 use crate::{
     error::AppError,
     osu_api::{BeatmapEnum, Group, OsuBeatmapSmall, UserOsu},
+    retry::Retryable,
 };
 
 use super::{numerical_thing, DatabaseClient};
@@ -88,7 +92,14 @@ impl From<UserOsu> for UserSmall {
         }
     }
 }
-#[derive(Serialize, Deserialize, JsonSchema)]
+
+/// Needed to get return type from activities
+#[derive(Serialize, Deserialize)]
+pub struct ActivityPreferenceWrapper {
+    pub activity_preferences: ActivityPreferences,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
 pub struct ActivityPreferences {
     pub add_influence: bool,
     pub add_influence_beatmap: bool,
@@ -119,12 +130,13 @@ impl Default for ActivityPreferences {
     }
 }
 
+#[derive(Deserialize, Debug)]
+pub struct DbUserId {
+    pub id: u32,
+}
+
 impl DatabaseClient {
-    pub async fn upsert_user(
-        &self,
-        user_details: UserOsu,
-        authenticated: bool,
-    ) -> Result<(), AppError> {
+    pub async fn upsert_user(&self, user_details: UserOsu) -> Result<(), AppError> {
         let ranked_mapper = user_details.is_ranked_mapper();
         self.db
             .query(
@@ -133,7 +145,6 @@ impl DatabaseClient {
                 SET 
                     username = $username,
                     avatar_url = $avatar_url,
-                    authenticated = $authenticated,
                     ranked_mapper = $ranked_maps,
                     country_code = $country_code,
                     country_name = $country_name,
@@ -151,7 +162,6 @@ impl DatabaseClient {
             .bind(("thing", numerical_thing("user", user_details.id)))
             .bind(("username", user_details.username))
             .bind(("avatar_url", user_details.avatar_url))
-            .bind(("authenticated", authenticated.then_some(true)))
             .bind(("ranked_maps", ranked_mapper))
             .bind(("country_code", user_details.country.code))
             .bind(("country_name", user_details.country.name))
@@ -185,6 +195,14 @@ impl DatabaseClient {
                 "pending_beatmapset_count",
                 user_details.pending_beatmapset_count,
             ))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_authenticated(&self, user_id: u32) -> Result<(), AppError> {
+        self.db
+            .query("UPDATE $thing SET authenticated = true")
+            .bind(("thing", numerical_thing("user", user_id)))
             .await?;
         Ok(())
     }
@@ -336,61 +354,18 @@ impl DatabaseClient {
         user_id: u32,
         preferences: ActivityPreferences,
     ) -> Result<ActivityPreferences, AppError> {
-        let query = r#"
-            IF $thing.activity_preference != NONE {
-                RETURN UPDATE ONLY $thing.activity_preference SET
-                    add_influence = $add_influence,
-                    add_influence_beatmap = $add_influence_beatmap,
-                    add_user_beatmap = $add_user_beatmap,
-                    edit_bio = $edit_bio,
-                    edit_influence_description = $edit_influence_description,
-                    edit_influence_type = $edit_influence_type,
-                    login = $login,
-                    remove_influence = $remove_influence,
-                    remove_influence_beatmap = $remove_influence_beatmap,
-                    remove_user_beatmap = $remove_user_beatmap;
-            } ELSE {
-                LET $created_preference = (CREATE ONLY activity_preference SET
-                    add_influence = $add_influence,
-                    add_influence_beatmap = $add_influence_beatmap,
-                    add_user_beatmap = $add_user_beatmap,
-                    edit_bio = $edit_bio,
-                    edit_influence_description = $edit_influence_description,
-                    edit_influence_type = $edit_influence_type,
-                    login = $login,
-                    remove_influence = $remove_influence,
-                    remove_influence_beatmap = $remove_influence_beatmap,
-                    remove_user_beatmap = $remove_user_beatmap
-                );
-                UPDATE ONLY $thing SET activity_preference = $created_preference.id;
-                RETURN $created_preference;
-            };
-        "#;
-
-        let preferences: Option<ActivityPreferences> = self
+        let preference_wrapper: Option<ActivityPreferenceWrapper> = self
             .db
-            .query(query)
+            .query(
+                "UPDATE $thing SET activity_preferences = $preferences RETURN activity_preferences",
+            )
             .bind(("thing", numerical_thing("user", user_id)))
-            .bind(("add_influence", preferences.add_influence))
-            .bind(("add_influence_beatmap", preferences.add_influence_beatmap))
-            .bind(("add_user_beatmap", preferences.add_user_beatmap))
-            .bind(("edit_bio", preferences.edit_bio))
-            .bind((
-                "edit_influence_description",
-                preferences.edit_influence_description,
-            ))
-            .bind(("edit_influence_type", preferences.edit_influence_type))
-            .bind(("login", preferences.login))
-            .bind(("remove_influence", preferences.remove_influence))
-            .bind((
-                "remove_influence_beatmap",
-                preferences.remove_influence_beatmap,
-            ))
-            .bind(("remove_user_beatmap", preferences.remove_user_beatmap))
+            .bind(("preferences", preferences))
             .await?
             .take(0)?;
 
-        preferences.ok_or(AppError::ActivityPreferencesQuery)
+        let preference_wrapper = preference_wrapper.ok_or(AppError::ActivityPreferencesQuery)?;
+        Ok(preference_wrapper.activity_preferences)
     }
 
     /// Returns an [`ActivityPreferences`] directly if the data is in DB.
@@ -399,12 +374,31 @@ impl DatabaseClient {
         &self,
         user_id: u32,
     ) -> Result<ActivityPreferences, AppError> {
-        let preferences: Option<ActivityPreferences> = self
+        let preference_wrapper: Option<ActivityPreferenceWrapper> = self
             .db
-            .query("SELECT * FROM $thing.activity_preference")
+            .query("SELECT activity_preferences FROM ONLY $thing")
             .bind(("thing", numerical_thing("user", user_id)))
             .await?
             .take(0)?;
-        Ok(preferences.unwrap_or_default())
+        let preference_wrapper = preference_wrapper.ok_or(AppError::MissingUser(user_id))?;
+        Ok(preference_wrapper.activity_preferences)
+    }
+
+    pub async fn get_users_to_update(&self) -> Result<Vec<u32>, AppError> {
+        let ids: Vec<DbUserId> = self
+            .db
+            .query("SELECT meta::id(id) as id FROM user WHERE updated_at + 1s < time::now()")
+            .await?
+            .take(0)?;
+
+        let ids = ids.into_iter().map(|db_id| db_id.id).collect();
+        Ok(ids)
+    }
+}
+
+#[async_trait]
+impl Retryable<Vec<u32>, AppError> for Arc<DatabaseClient> {
+    async fn retry(&mut self) -> Result<Vec<u32>, AppError> {
+        self.get_users_to_update().await
     }
 }

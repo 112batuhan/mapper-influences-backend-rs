@@ -15,7 +15,7 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use surrealdb::{sql::Datetime, Action};
+use surrealdb::{method::QueryStream, sql::Datetime, Action, Notification};
 use tokio::sync::{
     broadcast::{self, Receiver, Sender},
     Mutex,
@@ -348,7 +348,7 @@ impl ActivityTracker {
     }
 
     async fn start_loop(self: Arc<Self>, mut db: Arc<DatabaseClient>) -> Result<(), AppError> {
-        let mut stream = db
+        let mut stream: QueryStream<Notification<Activity>> = db
             .retry_until_success(60, "Failed to start activity stream")
             .await;
         let broadcast_sender = self.activity_broadcaster.clone();

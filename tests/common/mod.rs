@@ -7,7 +7,10 @@ use axum::{
 };
 use axum_test::TestServer;
 use mapper_influences_backend_rs::{
-    database::DatabaseClient, handlers, osu_api::request::OsuApiRequestClient, AppState,
+    database::DatabaseClient,
+    handlers,
+    osu_api::{credentials_grant::CredentialsGrantClient, request::OsuApiRequestClient},
+    AppState,
 };
 use osu_test_client::OsuApiTestClient;
 use surrealdb_migrations::MigrationRunner;
@@ -130,8 +133,11 @@ pub async fn init_test_env(
 
     let working_request_client = Arc::new(OsuApiRequestClient::new(10));
     let test_request_client = OsuApiTestClient::new(working_request_client.clone(), label);
+    let credentials_grant_client = CredentialsGrantClient::new(test_request_client.clone())
+        .await
+        .expect("Failed to initialize credentials grant client");
 
-    let state = AppState::new(test_request_client.clone(), db).await;
+    let state = AppState::new(test_request_client.clone(), credentials_grant_client, db).await;
 
     // Requesting peppy to add in our initial database
     let test_initial_user = state
@@ -139,7 +145,7 @@ pub async fn init_test_env(
         .get_user_osu(2)
         .await
         .unwrap();
-    state.db.upsert_user(test_initial_user, true).await.unwrap();
+    state.db.upsert_user(test_initial_user).await.unwrap();
 
     let routes = test_routes(state.clone()).with_state(state);
     let test_server = TestServer::new(routes).expect("failed to initialize test server");

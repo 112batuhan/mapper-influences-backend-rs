@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 use aide::OperationIo;
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
@@ -68,6 +70,9 @@ pub enum AppError {
 
     #[error("Error in activity preferences query")]
     ActivityPreferencesQuery,
+
+    #[error("Parse int: {0}")]
+    ParseInt(#[from] ParseIntError),
 }
 
 #[derive(Serialize)]
@@ -97,7 +102,7 @@ impl IntoResponse for AppError {
             AppError::MissingTokenCookie
             | AppError::JwtVerification
             | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
-            AppError::MissingLayerJson | AppError::StringTooLong => {
+            AppError::MissingLayerJson | AppError::StringTooLong | AppError::ParseInt(_) => {
                 StatusCode::UNPROCESSABLE_ENTITY
             }
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {

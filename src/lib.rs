@@ -15,6 +15,7 @@ use osu_api::credentials_grant::CredentialsGrantClient;
 use osu_api::request::Requester;
 
 pub mod custom_cache;
+pub mod daily_update;
 pub mod database;
 pub mod documentation;
 pub mod error;
@@ -36,11 +37,11 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn new(request: Arc<dyn Requester>, db: Arc<DatabaseClient>) -> Arc<AppState> {
-        let credentials_grant_client = CredentialsGrantClient::new(request.clone())
-            .await
-            .expect("Failed to initialize credentials grant client");
-
+    pub async fn new(
+        request: Arc<dyn Requester>,
+        credentials_grant_client: Arc<CredentialsGrantClient>,
+        db: Arc<DatabaseClient>,
+    ) -> Arc<AppState> {
         let cached_combined_requester =
             CombinedRequester::new(request.clone(), "https://osu.ppy.sh");
 
@@ -94,7 +95,7 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             get_with(handlers::osu_search::osu_user_search, |op| op.tag("Search")),
         )
         .api_route(
-            "/influence/:influenced_to",
+            "/influence",
             post_with(handlers::influence::add_influence, |op| op.tag("Influence")),
         )
         .api_route(

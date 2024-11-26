@@ -182,9 +182,8 @@ impl Requester for OsuApiRequestClient {
     }
 }
 
-impl Retryable for Arc<dyn Requester> {
-    type Value = OsuAuthToken;
-    type Err = AppError;
+#[async_trait]
+impl Retryable<OsuAuthToken, AppError> for Arc<dyn Requester> {
     async fn retry(&mut self) -> Result<OsuAuthToken, AppError> {
         self.get_client_credentials_token().await
     }

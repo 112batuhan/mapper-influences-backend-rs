@@ -19,6 +19,17 @@ DEFINE FIELD OVERWRITE guest_beatmapset_count ON user TYPE int;
 DEFINE FIELD OVERWRITE loved_beatmapset_count ON user TYPE int;
 DEFINE FIELD OVERWRITE graveyard_beatmapset_count ON user TYPE int;
 DEFINE FIELD OVERWRITE pending_beatmapset_count ON user TYPE int;
-DEFINE FIELD OVERWRITE activity_preference ON user TYPE option<record<activity_preference>>;
 
-DEFINE INDEX OVERWRITE country_name_index ON TABLE user COLUMNS country_name;
+DEFINE FIELD OVERWRITE activity_preferences ON user FLEXIBLE TYPE object 
+DEFAULT{
+    add_influence: true,
+    add_influence_beatmap: true,
+    add_user_beatmap: true,
+    edit_bio: true,
+    edit_influence_description: true,
+    edit_influence_type: true,
+    login: false,
+    remove_influence: false,
+    remove_influence_beatmap: false,
+    remove_user_beatmap: false,
+};
