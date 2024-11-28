@@ -21,9 +21,19 @@ pub struct GraphInfluence {
     influence_type: u8,
 }
 
+#[derive(Serialize, JsonSchema, Clone)]
+pub struct GraphData {
+    pub nodes: Vec<GraphUser>,
+    pub links: Vec<GraphInfluence>,
+}
+
 impl DatabaseClient {
-    pub async fn get_users_for_graph(&self) -> Result<Vec<GraphUser>, AppError> {
-        let graph_users: Vec<GraphUser> = self
+    /// These two select queries are combined into one. The goal is to keep the data consistent
+    /// with each other to avoid errors in graphs. It's an edge case but can happen if load is
+    /// high. And since we cache the results, the error will stay on UI for the duration of the
+    /// cache. Not optimal. If it happens regardless, then use transactions.
+    pub async fn get_graph_data(&self) -> Result<GraphData, AppError> {
+        let mut query_result = self
             .db
             .query(
                 "
@@ -37,19 +47,14 @@ impl DatabaseClient {
                 WHERE 
                     count(<-influenced_by) > 0 
                     OR count(->influenced_by) > 0;
+
+                SELECT meta::id(in) AS source, meta::id(out) AS target, influence_type FROM influenced_by;
                 ",
             )
-            .await?
-            .take(0)?;
-        Ok(graph_users)
-    }
-
-    pub async fn get_influences_for_graph(&self) -> Result<Vec<GraphInfluence>, AppError> {
-        let graph_influences: Vec<GraphInfluence> = self
-            .db
-            .query("SELECT meta::id(in) AS source, meta::id(out) AS target, influence_type FROM influenced_by;")
-            .await?
-            .take(0)?;
-        Ok(graph_influences)
+            .await?;
+        Ok(GraphData {
+            nodes: query_result.take(0)?,
+            links: query_result.take(1)?,
+        })
     }
 }

@@ -4,21 +4,8 @@ use std::{
 };
 
 use axum::{extract::State, Json};
-use futures::try_join;
-use schemars::JsonSchema;
-use serde::Serialize;
 
-use crate::{
-    database::graph_vizualizer::{GraphInfluence, GraphUser},
-    error::AppError,
-    AppState,
-};
-
-#[derive(Serialize, JsonSchema, Clone)]
-pub struct GraphData {
-    pub nodes: Vec<GraphUser>,
-    pub links: Vec<GraphInfluence>,
-}
+use crate::{database::graph_vizualizer::GraphData, error::AppError, AppState};
 
 pub struct GraphCacheInner {
     pub data: Option<GraphData>,
@@ -65,11 +52,7 @@ pub async fn get_graph_data(
         return Ok(Json(cached_graph));
     }
 
-    let (nodes, links) = try_join!(
-        state.db.get_users_for_graph(),
-        state.db.get_influences_for_graph()
-    )?;
-    let graph_data = GraphData { nodes, links };
+    let graph_data = state.db.get_graph_data().await?;
     state.graph_cache.update(graph_data.clone())?;
 
     Ok(Json(graph_data))
