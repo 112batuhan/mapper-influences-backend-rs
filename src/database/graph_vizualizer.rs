@@ -11,6 +11,7 @@ pub struct GraphUser {
     avatar_url: String,
     mentions: u32,
     username: String,
+    influenced_by: u32,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, PartialEq, Clone, Debug)]
@@ -28,10 +29,14 @@ impl DatabaseClient {
                 "
                 SELECT 
                     meta::id(id) AS id, 
-                    count(<-influenced_by) AS mentions, 
+                    count(<-influenced_by) AS mentions,
+                    count(->influenced_by) AS influenced_by,
                     avatar_url,
                     username
                 FROM user
+                WHERE 
+                    count(<-influenced_by) > 0 
+                    OR count(->influenced_by) > 0;
                 ",
             )
             .await?
@@ -42,7 +47,7 @@ impl DatabaseClient {
     pub async fn get_influences_for_graph(&self) -> Result<Vec<GraphInfluence>, AppError> {
         let graph_influences: Vec<GraphInfluence> = self
             .db
-            .query("SELECT meta::id(in) AS source, meta::id(out), influence_type AS target FROM influenced_by;")
+            .query("SELECT meta::id(in) AS source, meta::id(out) AS target, influence_type FROM influenced_by;")
             .await?
             .take(0)?;
         Ok(graph_influences)
