@@ -66,14 +66,14 @@ pub async fn osu_oauth2_redirect(
     let mut redirect_response = Redirect::to(POST_LOGIN_REDIRECT_URI.as_str()).into_response();
     let headers = redirect_response.headers_mut();
     let mut user_token_cookie_string = format!(
-        "user_token={};HttpOnly;Max-Age=86400;Path=/;SameSite=lax;Secure",
+        "user_token={};HttpOnly;Max-Age=86400;Path=/;SameSite=lax",
         token
     );
     let mut logged_in_cookie_string =
-        "logged_in=true;Max-Age=86400;Path=/;SameSite=lax;Secure".to_string();
+        "logged_in=true;Max-Age=86400;Path=/;SameSite=lax".to_string();
     if *SECURE_COOKIE {
-        user_token_cookie_string += "Secure";
-        logged_in_cookie_string += "Secure";
+        user_token_cookie_string += ";Secure";
+        logged_in_cookie_string += ";Secure";
     }
 
     headers.append(SET_COOKIE, user_token_cookie_string.parse().unwrap());
