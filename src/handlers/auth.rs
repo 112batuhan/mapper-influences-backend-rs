@@ -22,8 +22,11 @@ static POST_LOGIN_REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
 static ADMIN_PASSWORD: LazyLock<String> = LazyLock::new(|| {
     std::env::var("ADMIN_PASSWORD").expect("Missing ADMIN_PASSWORD environment variable")
 });
-static SECURE_COOKIE: LazyLock<bool> = LazyLock::new(|| {
-    std::env::var("SECURE_COOKIE").is_ok_and(|value| value.to_lowercase() == "true")
+
+/// To make local development easier, we set this flag in environment variables to set some cookie
+/// attributes dynamically
+static DEPLOY_COOKIE: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("DEPLOY_COOKIE").is_ok_and(|value| value.to_lowercase() == "true")
 });
 
 #[derive(Deserialize, JsonSchema)]
@@ -71,9 +74,9 @@ pub async fn osu_oauth2_redirect(
     );
     let mut logged_in_cookie_string =
         "logged_in=true;Max-Age=86400;Path=/;SameSite=lax".to_string();
-    if *SECURE_COOKIE {
-        user_token_cookie_string += ";Secure";
-        logged_in_cookie_string += ";Secure";
+    if *DEPLOY_COOKIE {
+        user_token_cookie_string += ";Secure;domain=.mapperinfluences.com";
+        logged_in_cookie_string += ";Secure;domain=.mapperinfluences.com";
     }
 
     headers.append(SET_COOKIE, user_token_cookie_string.parse().unwrap());
@@ -97,15 +100,11 @@ pub async fn logout() -> Response {
     let mut headers = HeaderMap::new();
     headers.append(
         SET_COOKIE,
-        "user_token=deleted; HttpOnly; Max-Age=-1; Path=/; SameSite=lax"
-            .parse()
-            .unwrap(),
+        "user_token=deleted;HttpOnly;Max-Age=-1".parse().unwrap(),
     );
     headers.append(
         SET_COOKIE,
-        "logged_in=false; Max-Age=-1; Path=/; SameSite=lax"
-            .parse()
-            .unwrap(),
+        "logged_in=false;HttpOnly;Max-Age=-1".parse().unwrap(),
     );
     headers.into_response()
 }
