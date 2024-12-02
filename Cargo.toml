@@ -12,6 +12,10 @@ path = "src/main.rs"
 name = "convert"
 path = "src/conversion.rs"
 
+[[bin]]
+name = "import_users"
+path = "src/user_import.rs"
+
 [dependencies]
 aide = { version = "0.13", features = ["axum", "axum-extra", "macros"] }
 async-trait = "0.1.83"

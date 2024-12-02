@@ -1,12 +1,16 @@
 use futures::future::join_all;
 use hashlink::LinkedHashSet;
+use mapper_influences_backend_rs::daily_update::update_once;
 use mapper_influences_backend_rs::database::{numerical_thing, DatabaseClient};
+use mapper_influences_backend_rs::osu_api::credentials_grant::CredentialsGrantClient;
+use mapper_influences_backend_rs::osu_api::request::OsuApiRequestClient;
 use mapper_influences_backend_rs::osu_api::Group;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
+use std::time::Duration;
 use surrealdb::sql::Thing;
 use surrealdb_migrations::MigrationRunner;
 
@@ -128,6 +132,10 @@ where
 async fn main() {
     dotenvy::dotenv().ok();
 
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+
     let path = "./conversion/users.json";
     let users: Vec<User> = read_json_file(path);
 
@@ -201,7 +209,7 @@ async fn main() {
 
     let mut handlers = Vec::new();
     let arc_db = db.clone();
-    for user in full_users {
+    for user in full_users.clone() {
         let order_vec: Vec<u32> = user
             .user
             .influence_order
@@ -223,6 +231,20 @@ async fn main() {
     }
     join_all(handlers).await;
     println!("custom order insertion done");
+
+    let user_ids = full_users.into_iter().map(|user| user.user.id).collect();
+    let request_client = Arc::new(OsuApiRequestClient::new(100));
+    let credentials_grant_client = CredentialsGrantClient::new(request_client).await.unwrap();
+
+    let unsuccessfuls = update_once(
+        credentials_grant_client,
+        db,
+        user_ids,
+        Duration::from_millis(100),
+    )
+    .await;
+
+    dbg!(unsuccessfuls);
 
     println!("done");
 }

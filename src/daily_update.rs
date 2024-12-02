@@ -9,11 +9,14 @@ pub async fn update_once(
     database: Arc<DatabaseClient>,
     users_to_update: Vec<u32>,
     wait_duration: Duration,
-) {
+) -> Vec<u32> {
     let mut interval = tokio::time::interval(wait_duration);
+
+    let mut unsuccessfull_ids = Vec::new();
     for user_id in users_to_update {
         interval.tick().await;
         let Ok(user) = client.get_user_osu(user_id).await else {
+            unsuccessfull_ids.push(user_id);
             tracing::error!(
                 "Failed to request {} from osu! API for daily update",
                 user_id
@@ -21,6 +24,7 @@ pub async fn update_once(
             continue;
         };
         let Ok(_) = database.upsert_user(user).await else {
+            unsuccessfull_ids.push(user_id);
             tracing::error!(
                 "Failed to insert user {} to database for daily update",
                 user_id
@@ -29,6 +33,7 @@ pub async fn update_once(
         };
         tracing::debug!("Requested and inserted user {} for daily update", user_id);
     }
+    unsuccessfull_ids
 }
 
 pub async fn update_routine(

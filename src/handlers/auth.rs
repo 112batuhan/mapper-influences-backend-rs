@@ -22,6 +22,9 @@ static POST_LOGIN_REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
 static ADMIN_PASSWORD: LazyLock<String> = LazyLock::new(|| {
     std::env::var("ADMIN_PASSWORD").expect("Missing ADMIN_PASSWORD environment variable")
 });
+static SECURE_COOKIE: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("SECURE_COOKIE").is_ok_and(|value| value.to_lowercase() == "true")
+});
 
 #[derive(Deserialize, JsonSchema)]
 pub struct AuthQuery {
@@ -62,21 +65,19 @@ pub async fn osu_oauth2_redirect(
     )?;
     let mut redirect_response = Redirect::to(POST_LOGIN_REDIRECT_URI.as_str()).into_response();
     let headers = redirect_response.headers_mut();
-    headers.append(
-        SET_COOKIE,
-        format!(
-            "user_token={}; HttpOnly; Max-Age=86400; Path=/; SameSite=lax",
-            token
-        )
-        .parse()
-        .unwrap(),
+    let mut user_token_cookie_string = format!(
+        "user_token={};HttpOnly;Max-Age=86400;Path=/;SameSite=lax;Secure",
+        token
     );
-    headers.append(
-        SET_COOKIE,
-        "logged_in=true;Max-Age=86400; Path=/; SameSite=lax"
-            .parse()
-            .unwrap(),
-    );
+    let mut logged_in_cookie_string =
+        "logged_in=true;Max-Age=86400;Path=/;SameSite=lax;Secure".to_string();
+    if *SECURE_COOKIE {
+        user_token_cookie_string += "Secure";
+        logged_in_cookie_string += "Secure";
+    }
+
+    headers.append(SET_COOKIE, user_token_cookie_string.parse().unwrap());
+    headers.append(SET_COOKIE, logged_in_cookie_string.parse().unwrap());
 
     // TODO: maybe fix authorized thing to be in the same query later?
     let osu_user_id = osu_user.id;
