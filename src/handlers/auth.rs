@@ -98,14 +98,14 @@ pub fn osu_oauth2_redirect_docs(op: TransformOperation<'_>) -> TransformOperatio
 
 pub async fn logout() -> Response {
     let mut headers = HeaderMap::new();
-    headers.append(
-        SET_COOKIE,
-        "user_token=deleted;HttpOnly;Max-Age=-1".parse().unwrap(),
-    );
-    headers.append(
-        SET_COOKIE,
-        "logged_in=false;HttpOnly;Max-Age=-1".parse().unwrap(),
-    );
+    let mut user_token_cookie_string = "user_token=deleted;HttpOnly;Max-Age=-1".to_string();
+    let mut logged_in_cookie_string = "logged_in=false;HttpOnly;Max-Age=-1".to_string();
+    if *DEPLOY_COOKIE {
+        user_token_cookie_string += ";Secure;domain=.mapperinfluences.com";
+        logged_in_cookie_string += ";Secure;domain=.mapperinfluences.com";
+    }
+    headers.append(SET_COOKIE, user_token_cookie_string.parse().unwrap());
+    headers.append(SET_COOKIE, logged_in_cookie_string.parse().unwrap());
     headers.into_response()
 }
 
