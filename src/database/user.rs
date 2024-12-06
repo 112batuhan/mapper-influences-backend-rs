@@ -76,6 +76,7 @@ pub struct UserSmall {
     /// This will have a number if the data is coming from database.
     /// If the data comes from osu! API, then this will be null
     pub mentions: Option<u32>,
+    pub previous_usernames: Vec<String>,
 }
 
 impl From<UserOsu> for UserSmall {
@@ -89,6 +90,7 @@ impl From<UserOsu> for UserSmall {
             country_name: user.country.name,
             ranked_maps: user.ranked_and_approved_beatmapset_count + user.guest_beatmapset_count,
             mentions: None,
+            previous_usernames: user.previous_usernames,
         }
     }
 }
@@ -339,7 +341,8 @@ impl DatabaseClient {
                     groups,
                     ranked_and_approved_beatmapset_count 
                         + guest_beatmapset_count as ranked_maps,
-                    count(<-influenced_by) as mentions
+                    count(<-influenced_by) as mentions,
+                    previous_usernames
                 FROM $things;
                 ",
             )

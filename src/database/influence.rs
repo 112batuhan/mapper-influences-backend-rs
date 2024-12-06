@@ -34,6 +34,7 @@ impl DatabaseClient {
         out.ranked_and_approved_beatmapset_count 
             + out.guest_beatmapset_count as user.ranked_maps,
         count(out<-influenced_by) as user.mentions,
+        out.previous_usernames as user.previous_usernames,
         beatmaps,
         description,
         influence_type
@@ -204,6 +205,7 @@ impl DatabaseClient {
                     out.ranked_and_approved_beatmapset_count 
                         + out.guest_beatmapset_count as user.ranked_maps,
                     COUNT(->user<-influenced_by) as user.mentions,
+                    out.previous_usernames as user.previous_usernames,
                     influence_type,
                     description,
                     beatmaps,
@@ -243,6 +245,7 @@ impl DatabaseClient {
                     in.ranked_and_approved_beatmapset_count 
                         + in.guest_beatmapset_count as user.ranked_maps,
                     COUNT(<-user<-influenced_by) as user.mentions,
+                    in.previous_usernames as user.previous_usernames,
                     influence_type,
                     description
                 FROM $thing<-influenced_by 

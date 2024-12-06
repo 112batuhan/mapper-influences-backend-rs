@@ -47,7 +47,8 @@ impl DatabaseClient {
                     out.groups as user.groups,
                     out.ranked_and_approved_beatmapset_count 
                         + out.guest_beatmapset_count as user.ranked_maps,
-                    count(out<-influenced_by) as user.mentions
+                    count(out<-influenced_by) as user.mentions,
+                    out.previous_usernames as user.previous_usernames
                 FROM 
                     (SELECT 
                         count() AS count, 

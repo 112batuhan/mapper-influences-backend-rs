@@ -43,6 +43,7 @@ impl DatabaseClient {
             user.groups,
             user.ranked_and_approved_beatmapset_count 
                 + user.guest_beatmapset_count as user.ranked_maps,
+            user.previous_usernames,
 
             fn::id_or_null(influence.out.id) as influence.id,
             influence.out.username as influence.username,
@@ -50,6 +51,7 @@ impl DatabaseClient {
             influence.out.country_code as influence.country_code,
             influence.out.country_name as influence.country_name,
             influence.out.groups as influence.groups,
+            influence.out.previous_usernames as influence.previous_usernames,
             fn::add_possible_nulls(
                 influence.out.ranked_and_approved_beatmapset_count, 
                 influence.out.guest_beatmapset_count
