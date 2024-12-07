@@ -27,13 +27,13 @@ pub struct Description {
 }
 
 /// `InfluenceCreationOptions` type. Optional fields to override defaults
-/// TODO: for the love of god, let's fix this rename later
+/// TODO:fixed the rename, remove alias once the frontend pr has merged
 #[derive(Deserialize, JsonSchema)]
 pub struct InfluenceCreationOptions {
     pub influence_type: Option<u8>,
     pub description: Option<String>,
     pub beatmaps: Option<Vec<u32>>,
-    #[serde(rename = "userId")]
+    #[serde(alias = "userId")]
     pub user_id: String,
 }
 
