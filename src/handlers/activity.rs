@@ -152,9 +152,9 @@ impl ActivityTracker {
 
     pub fn add_new_activity_to_queue(&self, new_activity: Activity) -> Result<(), AppError> {
         let mut locked_queue = self.lock_activity_queue()?;
-        locked_queue.push_front(new_activity);
+        locked_queue.push_back(new_activity);
         if locked_queue.len() > self.queue_size.into() {
-            locked_queue.pop_back();
+            locked_queue.pop_front();
         }
         Ok(())
     }
