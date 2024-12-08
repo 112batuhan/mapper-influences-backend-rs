@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::{custom_cache::CustomCache, error::AppError};
 
 use super::{
-    request::Requester, GetID, OsuBeatmapSmall, OsuMultipleBeatmap, OsuMultipleUser, UserOsu,
+    request::Requester, BeatmapsetSmall, GetID, OsuMultipleBeatmap, OsuMultipleUser, UserOsu,
 };
 
 pub struct CachedRequester<T: DeserializeOwned + GetID + Clone + Send + 'static> {
@@ -97,7 +97,7 @@ impl CombinedRequester {
         &self,
         ids: &[u32],
         access_token: &str,
-    ) -> Result<HashMap<u32, OsuBeatmapSmall>, AppError> {
+    ) -> Result<HashMap<u32, BeatmapsetSmall>, AppError> {
         let beatmap_map = self
             .beatmap_requester
             .clone()
@@ -117,7 +117,7 @@ impl CombinedRequester {
             .into_iter()
             .map(|(beatmap_id, beatmap)| {
                 let user = user_map.get(&beatmap.user_id).cloned();
-                let new_beatmap = OsuBeatmapSmall::from_osu_beatmap_and_user_data(beatmap, user);
+                let new_beatmap = BeatmapsetSmall::from_osu_beatmap_and_user_data(beatmap, user);
                 (beatmap_id, new_beatmap)
             })
             .collect();

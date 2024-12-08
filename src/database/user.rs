@@ -7,7 +7,7 @@ use surrealdb::sql::Thing;
 
 use crate::{
     error::AppError,
-    osu_api::{BeatmapEnum, Group, OsuBeatmapSmall, UserOsu},
+    osu_api::{BeatmapEnum, BeatmapsetSmall, Group, UserOsu},
     retry::Retryable,
 };
 
@@ -31,7 +31,7 @@ pub struct User {
     pub loved_beatmapset_count: u32,
     pub graveyard_beatmapset_count: u32,
     pub pending_beatmapset_count: u32,
-    #[schemars(with = "Vec<OsuBeatmapSmall>")]
+    #[schemars(with = "Vec<BeatmapsetSmall>")]
     pub beatmaps: Vec<BeatmapEnum>,
     /// This will have a number if the data is coming from database.
     /// If the data comes from osu! API, then this will be null

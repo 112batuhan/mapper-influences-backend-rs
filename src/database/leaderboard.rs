@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::AppError,
-    osu_api::{BeatmapEnum, OsuBeatmapSmall},
+    osu_api::{BeatmapEnum, BeatmapsetSmall},
 };
 
 use super::{user::UserSmall, DatabaseClient};
@@ -19,7 +19,7 @@ pub struct LeaderboardUser {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, PartialEq)]
 /// `LeaderboardBeatmap` type
 pub struct LeaderboardBeatmap {
-    #[schemars(with = "OsuBeatmapSmall")]
+    #[schemars(with = "BeatmapsetSmall")]
     pub beatmap: BeatmapEnum,
     /// Amount of times that this map has been added to the mentions
     pub count: u32,

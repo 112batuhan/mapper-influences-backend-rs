@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::AppError,
     handlers::influence::InfluenceCreationOptions,
-    osu_api::{BeatmapEnum, OsuBeatmapSmall},
+    osu_api::{BeatmapEnum, BeatmapsetSmall},
 };
 
 use super::{numerical_thing, user::UserSmall, DatabaseClient};
@@ -18,7 +18,7 @@ pub struct Influence {
     /// `OsuUserSmall` type. This array will be empty for mentions endpoint even if the
     /// influence contains beatmaps
     #[serde(default)]
-    #[schemars(with = "Vec<OsuBeatmapSmall>")]
+    #[schemars(with = "Vec<BeatmapsetSmall>")]
     pub beatmaps: Vec<BeatmapEnum>,
 }
 

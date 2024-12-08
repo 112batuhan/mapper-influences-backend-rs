@@ -6,70 +6,17 @@ use axum::{
 };
 use cached::proc_macro::cached;
 use itertools::Itertools;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 use crate::{
     custom_cache::CustomCache,
     database::user::UserSmall,
     error::AppError,
     jwt::AuthData,
-    osu_api::{
-        cached_requester::cached_osu_user_request, BaseBeatmapset, BeatmapOsu, OsuBeatmapSmall,
-        OsuMultipleUser,
-    },
+    osu_api::{cached_requester::cached_osu_user_request, BeatmapsetSmall},
     AppState,
 };
 
 use super::{PathBeatmapId, PathQuery};
-
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-/// `SearchBeatmapset` type. For more compact beatmap search results
-pub struct SearchBeatmapset {
-    pub id: u32,
-    pub beatmaps: Vec<BeatmapOsu>,
-    pub title: String,
-    pub artist: String,
-    pub cover: String,
-    pub user_name: String,
-    pub user_avatar_url: String,
-    pub user_id: u32,
-}
-
-impl SearchBeatmapset {
-    /// This function combines [`BaseBeatmapset`] and [`OsuMultipleUser`].
-    ///
-    /// If user is not returned from the query, we fallback to beatmapset user.
-    /// This usually happens if the original mapper is banned. If the beatmapset submitter is also
-    /// banned, we don't have to worry about the avatar_url as osu automatically falls back to
-    /// guest picture.
-    pub fn from_base_beapmapset_and_user(
-        api_set: BaseBeatmapset,
-        user_multiple: Option<OsuMultipleUser>,
-    ) -> Self {
-        let user_name: String;
-        let user_avatar_url: String;
-
-        if let Some(user_multiple) = user_multiple {
-            user_name = user_multiple.username;
-            user_avatar_url = user_multiple.avatar_url;
-        } else {
-            user_name = api_set.creator;
-            user_avatar_url = format!("https://a.ppy.sh/{}?", api_set.user_id);
-        }
-
-        SearchBeatmapset {
-            id: api_set.id,
-            beatmaps: api_set.beatmaps,
-            title: api_set.title,
-            artist: api_set.artist,
-            cover: api_set.covers.cover,
-            user_id: api_set.user_id,
-            user_name,
-            user_avatar_url,
-        }
-    }
-}
 
 #[cached(
     ty = "CustomCache<String, Json<Vec<UserSmall>>>",
@@ -119,7 +66,7 @@ pub async fn osu_user_search(
 }
 
 #[cached(
-    ty = "CustomCache<String, Json<Vec<SearchBeatmapset>>>",
+    ty = "CustomCache<String, Json<Vec<BeatmapsetSmall>>>",
     create = "{CustomCache::new(300)}",
     convert = r#"{request.uri().to_string()}"#,
     result = true
@@ -128,7 +75,7 @@ pub async fn osu_beatmap_search(
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
     request: Request,
-) -> Result<Json<Vec<SearchBeatmapset>>, AppError> {
+) -> Result<Json<Vec<BeatmapsetSmall>>, AppError> {
     let uri = request.uri().to_string();
     let query = uri
         .strip_prefix("/search/map?")
@@ -155,7 +102,7 @@ pub async fn osu_beatmap_search(
         .into_iter()
         .map(|beatmapset| {
             let user = user_map.get(&beatmapset.user_id).cloned();
-            SearchBeatmapset::from_base_beapmapset_and_user(beatmapset, user)
+            BeatmapsetSmall::from_base_beapmapset_and_user(beatmapset, user)
         })
         .collect();
 
@@ -166,7 +113,7 @@ pub async fn osu_singular_beatmap_serch(
     Path(beatmap_path): Path<PathBeatmapId>,
     Extension(auth_data): Extension<AuthData>,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<OsuBeatmapSmall>, AppError> {
+) -> Result<Json<BeatmapsetSmall>, AppError> {
     let beatmap_map = state
         .cached_combined_requester
         .clone()

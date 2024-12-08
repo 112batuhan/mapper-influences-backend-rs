@@ -134,13 +134,12 @@ pub struct OsuSearchUserResponse {
     pub user: OsuSearchUserData,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-/// `BeatmapOsu` type. Used in `SearchBeatmapset` type
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq)]
+/// `BeatmapOsu` type. Used in `BeatmapsetSmall` type
 pub struct BeatmapOsu {
-    pub difficulty_rating: f64,
+    pub difficulty_rating: f32,
     pub id: u32,
     pub mode: String,
-    pub beatmapset_id: u32,
     pub version: String,
 }
 
@@ -205,23 +204,22 @@ pub struct OsuMultipleBeatmapsetResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq)]
-/// `OsuBeatmapSmall` type. Mainly for beatmap cards
-pub struct OsuBeatmapSmall {
+/// `BeatmapsetSmall` type. Mainly for beatmap cards.
+pub struct BeatmapsetSmall {
     pub id: u32,
-    pub difficulty_rating: f32,
-    pub mode: String,
-    pub beatmapset_id: u32,
-    pub version: String,
-    pub user_id: u32,
-    pub user_name: String,
-    pub user_avatar_url: String,
+    pub beatmaps: Vec<BeatmapOsu>,
     pub title: String,
     pub artist: String,
     pub cover: String,
+    pub user_name: String,
+    pub user_avatar_url: String,
+    pub user_id: u32,
 }
 
-impl OsuBeatmapSmall {
+impl BeatmapsetSmall {
     /// This function combines [`OsuMultipleBeatmap`] and [`OsuMultipleUser`].
+    /// [`OsuMultipleBeatmap`] is returned from multiple beatmap queries and then we also save this
+    /// data in the memory cache.
     ///
     /// If user is not returned from the query, we fallback to beatmapset user.
     /// This usually happens if the original mapper is banned. If the beatmapset submitter is also
@@ -230,7 +228,7 @@ impl OsuBeatmapSmall {
     pub fn from_osu_beatmap_and_user_data(
         osu_multiple: OsuMultipleBeatmap,
         user_multiple: Option<OsuMultipleUser>,
-    ) -> OsuBeatmapSmall {
+    ) -> BeatmapsetSmall {
         let user_name: String;
         let user_avatar_url: String;
 
@@ -242,18 +240,54 @@ impl OsuBeatmapSmall {
             user_avatar_url = format!("https://a.ppy.sh/{}?", osu_multiple.beatmapset.user_id);
         }
 
-        OsuBeatmapSmall {
-            id: osu_multiple.id,
-            difficulty_rating: osu_multiple.difficulty_rating,
-            mode: osu_multiple.mode,
-            beatmapset_id: osu_multiple.beatmapset_id,
-            version: osu_multiple.version,
+        BeatmapsetSmall {
+            id: osu_multiple.beatmapset_id,
+            beatmaps: vec![BeatmapOsu {
+                difficulty_rating: osu_multiple.difficulty_rating,
+                id: osu_multiple.id,
+                mode: osu_multiple.mode,
+                version: osu_multiple.version,
+            }],
             user_id: osu_multiple.user_id,
             user_name,
             user_avatar_url,
             title: osu_multiple.beatmapset.title,
             artist: osu_multiple.beatmapset.artist,
             cover: osu_multiple.beatmapset.covers.cover,
+        }
+    }
+
+    /// This function combines [`BaseBeatmapset`] and [`OsuMultipleUser`].
+    /// [`BaseBeatmapset`] is returned from beatmap search endpoint.
+    ///
+    /// If user is not returned from the query, we fallback to beatmapset user.
+    /// This usually happens if the original mapper is banned. If the beatmapset submitter is also
+    /// banned, we don't have to worry about the avatar_url as osu automatically falls back to
+    /// guest picture.
+    pub fn from_base_beapmapset_and_user(
+        api_set: BaseBeatmapset,
+        user_multiple: Option<OsuMultipleUser>,
+    ) -> Self {
+        let user_name: String;
+        let user_avatar_url: String;
+
+        if let Some(user_multiple) = user_multiple {
+            user_name = user_multiple.username;
+            user_avatar_url = user_multiple.avatar_url;
+        } else {
+            user_name = api_set.creator;
+            user_avatar_url = format!("https://a.ppy.sh/{}?", api_set.user_id);
+        }
+
+        BeatmapsetSmall {
+            id: api_set.id,
+            beatmaps: api_set.beatmaps,
+            title: api_set.title,
+            artist: api_set.artist,
+            cover: api_set.covers.cover,
+            user_id: api_set.user_id,
+            user_name,
+            user_avatar_url,
         }
     }
 }
@@ -263,7 +297,7 @@ impl OsuBeatmapSmall {
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum BeatmapEnum {
-    All(OsuBeatmapSmall),
+    All(BeatmapsetSmall),
     Id(u32),
 }
 

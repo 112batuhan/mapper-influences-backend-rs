@@ -3,13 +3,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{database::user::UserSmall, osu_api::OsuBeatmapSmall};
+use crate::{database::user::UserSmall, osu_api::BeatmapsetSmall};
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct FlattenedActivityType {
     pub event_type: EventType,
     pub influence: Option<UserSmallActivity>,
-    pub beatmap: Option<OsuBeatmapSmallActivity>,
+    pub beatmap: Option<BeatmapsetSmallActivity>,
     /// Changed influence description. for `EDIT_INFLUENCE_DESC` activity type.
     pub description: Option<String>,
     /// Changed influence type. for `EDIT_INFLUENCE_TYPE` activity type.
@@ -29,14 +29,14 @@ pub struct UserSmallActivity {
     inner: UserSmall,
 }
 
-/// Added or removed beatmap. `OsuBeatmapSmall` type. For `ADD_USER_BEATMAP`, `REMOVE_USER_BEATMAP`,
+/// Added or removed beatmap. `BeatmapsetSmall` type. For `ADD_USER_BEATMAP`, `REMOVE_USER_BEATMAP`,
 /// `ADD_INFLUENCE_BEATMAP`, `REMOVE_INFLUENCE_BEATMAP` activity types.
 ///
 /// This is a placeholder type for documentation only. It's the same as `OsuBeatmapSmall`
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-pub struct OsuBeatmapSmallActivity {
+pub struct BeatmapsetSmallActivity {
     #[serde(flatten)]
-    inner: OsuBeatmapSmall,
+    inner: BeatmapsetSmall,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
