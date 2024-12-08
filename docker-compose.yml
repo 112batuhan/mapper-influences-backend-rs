@@ -49,8 +49,8 @@ services:
       - mapper-influences-rs 
     environment:
       SURREAL_USER: backend
-      SURREAL_PASS: password
-      SURREAL_URL: ws://surrealdb:8000 # Docker internal port 
+      SURREAL_PASS: ${SURREAL_PASS:-password} 
+      SURREAL_URL: ${SURREAL_URL:-ws://surrealdb:8000} # Docker internal port 
       REDIRECT_URI: http://localhost:8000/oauth/osu-redirect
       POST_LOGIN_REDIRECT_URI: http://localhost:3000/dashboard
       JWT_SECRET_KEY: localkey
