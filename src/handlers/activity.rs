@@ -182,7 +182,7 @@ impl ActivityTracker {
             ActivityType::AddUserBeatmap {
                 beatmap: new_beatmap,
             } => {
-                let max_false = 5;
+                let max_false = 1;
                 let mut current_false = 0;
                 let matched = locked_queue.iter().any(|old_activity| {
                     new_activity.user.id == old_activity.user.id
@@ -191,7 +191,7 @@ impl ActivityTracker {
                                 beatmap: old_beatmap,
                             } => {
                                 if new_beatmap.get_id() != old_beatmap.get_id()
-                                    && current_false < max_false
+                                    && current_false <= max_false
                                 {
                                     current_false += 1;
                                     false
@@ -259,7 +259,7 @@ impl ActivityTracker {
                 influence: new_influence,
                 beatmap: new_beatmap,
             } => {
-                let max_false = 2;
+                let max_false = 1;
                 let mut current_false = 0;
                 let matched = locked_queue.iter().any(|old_activity| {
                     new_activity.user.id == old_activity.user.id
@@ -270,7 +270,7 @@ impl ActivityTracker {
                             } => {
                                 if new_influence.id != old_influence.id
                                     || new_beatmap.get_id() != old_beatmap.get_id()
-                                        && current_false < max_false
+                                        && current_false <= max_false
                                 {
                                     current_false += 1;
                                     false
