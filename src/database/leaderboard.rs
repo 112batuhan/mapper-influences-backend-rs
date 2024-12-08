@@ -83,21 +83,24 @@ impl DatabaseClient {
             .db
             .query(
                 "
-                SELECT 
-                    beatmap,
-                    count(beatmap) as count 
+                SELECT *
                 FROM (
-                    (
-                        SELECT beatmaps
-                        FROM influenced_by
-                        WHERE $ranked_only = false OR <-user.ranked_mapper.at(0) = true
+                    SELECT 
+                        beatmap,
+                        count(beatmap) as count 
+                    FROM (
+                        (
+                            SELECT beatmaps
+                            FROM influenced_by
+                            WHERE $ranked_only = false OR <-user.ranked_mapper.at(0) = true
+                        )
+                        .map(|$val| $val.values())
+                        .flatten()
+                        .flatten()
+                        .map(|$val| {beatmap: $val})
                     )
-                    .map(|$val| $val.values())
-                    .flatten()
-                    .flatten()
-                    .map(|$val| {beatmap: $val})
+                    GROUP BY beatmap
                 )
-                GROUP BY beatmap 
                 ORDER BY count DESC
                 START $start
                 LIMIT $limit;
