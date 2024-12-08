@@ -179,28 +179,13 @@ impl ActivityTracker {
                 new_activity.user.id == old_activity.user.id
                     && matches!(old_activity.activity_type, ActivityType::EditBio { .. })
             })),
-            ActivityType::AddUserBeatmap {
-                beatmap: new_beatmap,
-            } => {
-                let max_false = 1;
-                let mut current_false = 0;
+            ActivityType::AddUserBeatmap { .. } => {
                 let matched = locked_queue.iter().any(|old_activity| {
                     new_activity.user.id == old_activity.user.id
-                        && match &old_activity.activity_type {
-                            ActivityType::AddUserBeatmap {
-                                beatmap: old_beatmap,
-                            } => {
-                                if new_beatmap.get_id() != old_beatmap.get_id()
-                                    && current_false <= max_false
-                                {
-                                    current_false += 1;
-                                    false
-                                } else {
-                                    true
-                                }
-                            }
-                            _ => false,
-                        }
+                        && matches!(
+                            &old_activity.activity_type,
+                            ActivityType::AddUserBeatmap { .. }
+                        )
                 });
                 Ok(!matched)
             }
@@ -257,27 +242,15 @@ impl ActivityTracker {
             }
             ActivityType::AddInfluenceBeatmap {
                 influence: new_influence,
-                beatmap: new_beatmap,
+                ..
             } => {
-                let max_false = 1;
-                let mut current_false = 0;
                 let matched = locked_queue.iter().any(|old_activity| {
                     new_activity.user.id == old_activity.user.id
                         && match &old_activity.activity_type {
                             ActivityType::AddInfluenceBeatmap {
                                 influence: old_influence,
-                                beatmap: old_beatmap,
-                            } => {
-                                if new_influence.id != old_influence.id
-                                    || new_beatmap.get_id() != old_beatmap.get_id()
-                                        && current_false <= max_false
-                                {
-                                    current_false += 1;
-                                    false
-                                } else {
-                                    true
-                                }
-                            }
+                                ..
+                            } => new_influence.id == old_influence.id,
                             _ => false,
                         }
                 });
