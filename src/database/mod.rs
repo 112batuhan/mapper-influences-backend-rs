@@ -41,7 +41,7 @@ impl DatabaseClient {
                     .expect("Missing SURREAL_PASS envrionment variable"),
             })
             .await?;
-        client.use_ns("test").use_db("test").await?;
+        client.use_ns("prod").use_db("prod").await?;
         Ok(Arc::new(DatabaseClient { db: client }))
     }
     pub fn get_inner_ref(&self) -> &Surreal<Client> {

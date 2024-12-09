@@ -65,18 +65,14 @@ pub struct User {
 }
 
 fn default_groups() -> Vec<Group> {
-    vec![Group {
-        colour: Some("#fa3703".to_string()),
-        name: "Nomination Assessment Team".to_string(),
-        short_name: "NAT".to_string(),
-    }]
+    vec![]
 }
 fn default_previous_name() -> Vec<String> {
-    vec!["test".to_string()]
+    vec![]
 }
 
 fn default_country_name() -> String {
-    "North Korea".to_string()
+    "".to_string()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
