@@ -26,8 +26,7 @@ use crate::{
     documentation,
     error::AppError,
     osu_api::{
-        cached_requester::CombinedRequester, credentials_grant::CredentialsGrantClient,
-        BeatmapEnum, GetID,
+        cached_requester::CombinedRequester, credentials_grant::CredentialsGrantClient, BeatmapEnum,
     },
     retry::Retryable,
     AppState,
