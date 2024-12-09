@@ -483,7 +483,9 @@ async fn handle_socket(
     {
         let mut locked_ws_sender = ws_sender.lock().await;
         if let Err(error) = locked_ws_sender.send(Message::Text(initial_data)).await {
-            tracing::error!(
+            // TODO: change this to error later! log the "working with closed connection" to info.
+            // It's cluttering logs
+            tracing::info!(
                 "Error while sending initial message to {}: {}",
                 address,
                 error
