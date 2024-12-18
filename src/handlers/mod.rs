@@ -25,7 +25,7 @@ pub struct PaginationQuery {
     start: u32,
 }
 fn default_limit() -> u32 {
-    100
+    u32::MAX
 }
 
 #[derive(Deserialize, JsonSchema)]

@@ -27,7 +27,6 @@ pub struct Description {
 }
 
 /// `InfluenceCreationOptions` type. Optional fields to override defaults
-/// TODO:fixed the rename, remove alias once the frontend pr has merged
 #[derive(Deserialize, JsonSchema)]
 pub struct InfluenceCreationOptions {
     pub influence_type: Option<u8>,
