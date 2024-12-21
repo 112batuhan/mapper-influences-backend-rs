@@ -48,6 +48,7 @@ tower-http = { version = "0.6.1", features = [
 ] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+webhook = { version = "2.1.2", features = ["models"] }
 
 [patch.crates-io]
 serde = { git = "https://github.com/frederik-uni/serde" }

@@ -73,6 +73,9 @@ pub enum AppError {
 
     #[error("Parse int: {0}")]
     ParseInt(#[from] ParseIntError),
+
+    #[error("Discord webhook error:{0}")]
+    Webhook(String),
 }
 
 #[derive(Serialize)]
@@ -97,6 +100,7 @@ impl IntoResponse for AppError {
             | AppError::ActivityStreamClosed
             | AppError::SurrealDbSerialization(_)
             | AppError::StdIO(_)
+            | AppError::Webhook(_)
             | AppError::ActivityPreferencesQuery
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie

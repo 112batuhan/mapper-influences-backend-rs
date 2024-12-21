@@ -17,6 +17,7 @@ use osu_api::request::Requester;
 pub mod custom_cache;
 pub mod daily_update;
 pub mod database;
+pub mod discord_webhook;
 pub mod documentation;
 pub mod error;
 pub mod handlers;
