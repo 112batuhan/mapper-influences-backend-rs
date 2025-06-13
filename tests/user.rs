@@ -23,7 +23,7 @@ async fn test_user_beatmap_add() {
         .patch("/users/map")
         .add_header(COOKIE, format!("user_token={}", jwt))
         .json(&BeatmapRequest {
-            ids: vec![4823239, 4606684, 4606684].into_iter().collect(),
+            ids: vec![4823239, 3119298, 3119298].into_iter().collect(),
         })
         .await
         .json();

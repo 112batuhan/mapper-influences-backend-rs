@@ -105,10 +105,11 @@ impl OsuApiTestClient {
 #[async_trait]
 impl Requester for OsuApiTestClient {
     async fn get_request(&self, url: &str, token: &str) -> Result<Bytes, AppError> {
+        dbg!(&url);
         match &self.client_mod {
             ClientMod::Replay => {
                 let read_cache_lock = self.read_cache_lock()?;
-                let bytes = read_cache_lock.get(url).unwrap_or_else(|| {
+                let bytes = dbg!(read_cache_lock.get(url)).unwrap_or_else(|| {
                     panic!(
                         "Missing cache entry in {} \
                         Please delete the cache file to record requests again",
