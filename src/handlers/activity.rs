@@ -145,7 +145,7 @@ impl ActivityTracker {
         Ok(activity_tracker)
     }
 
-    pub fn lock_activity_queue(&self) -> Result<MutexGuard<VecDeque<Activity>>, AppError> {
+    pub fn lock_activity_queue(&self) -> Result<MutexGuard<'_, VecDeque<Activity>>, AppError> {
         self.activity_queue.lock().map_err(|_| AppError::Mutex)
     }
 
