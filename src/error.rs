@@ -51,7 +51,7 @@ pub enum AppError {
     SephomoreError(#[from] tokio::sync::AcquireError),
 
     #[error("Unhandled surrealdb error: {0}")]
-    UnhandledDb(#[from] surrealdb::Error),
+    UnhandledDb(#[from] Box<surrealdb::Error>),
 
     #[error("Unhandled Reqwest Error: {0}")]
     Reqwest(#[from] reqwest::Error),
@@ -110,5 +110,12 @@ impl IntoResponse for AppError {
             }
         };
         (status_code, body).into_response()
+    }
+}
+
+/// Converting SurrealDB errors into our error with a boxed value because this variant is too big.
+impl From<surrealdb::Error> for AppError {
+    fn from(value: surrealdb::Error) -> Self {
+        AppError::UnhandledDb(Box::new(value))
     }
 }
