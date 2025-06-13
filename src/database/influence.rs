@@ -79,11 +79,11 @@ impl DatabaseClient {
             .db
             .query(format!(
                 "
-                LET $deleted = DELETE ONLY $own_user->influenced_by WHERE out=$target_user RETURN BEFORE;
+                LET $deleted = DELETE $own_user->influenced_by WHERE out=$target_user RETURN BEFORE;
                 SELECT {} FROM $deleted;
                 ",
-            self.single_influence_return_string()
-        ))
+                self.single_influence_return_string()
+            ))
             .bind(("own_user", numerical_thing("user", own_user_id)))
             .bind(("target_user", numerical_thing("user", target_user_id)))
             .await?
