@@ -83,10 +83,10 @@ impl OsuApiTestClient {
         })
     }
 
-    fn read_cache_lock(&self) -> Result<RwLockReadGuard<HashMap<String, Bytes>>, AppError> {
+    fn read_cache_lock(&self) -> Result<RwLockReadGuard<'_, HashMap<String, Bytes>>, AppError> {
         self.request_cache.read().map_err(|_| AppError::RwLock)
     }
-    fn write_cache_lock(&self) -> Result<RwLockWriteGuard<HashMap<String, Bytes>>, AppError> {
+    fn write_cache_lock(&self) -> Result<RwLockWriteGuard<'_, HashMap<String, Bytes>>, AppError> {
         self.request_cache.write().map_err(|_| AppError::RwLock)
     }
 
