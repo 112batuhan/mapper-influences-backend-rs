@@ -150,7 +150,7 @@ pub async fn admin_login(
 ) -> Result<String, AppError> {
     if Argon2::default()
         .verify_password(admin_login.password.as_bytes(), &ADMIN_PASSWORD)
-        .is_ok()
+        .is_err()
     {
         return Err(AppError::WrongAdminPassword);
     }
