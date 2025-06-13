@@ -1,6 +1,10 @@
 use std::sync::{Arc, LazyLock};
 
 use aide::transform::TransformOperation;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use axum::{
     extract::{Query, Request, State},
     response::{IntoResponse, Redirect, Response},
@@ -19,8 +23,16 @@ static POST_LOGIN_REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
     std::env::var("POST_LOGIN_REDIRECT_URI")
         .expect("Missing POST_LOGIN_REDIRECT_URI environment variable")
 });
-static ADMIN_PASSWORD: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("ADMIN_PASSWORD").expect("Missing ADMIN_PASSWORD environment variable")
+
+static ADMIN_PASSWORD_SALT: LazyLock<SaltString> =
+    LazyLock::new(|| SaltString::generate(&mut OsRng));
+
+static ADMIN_PASSWORD: LazyLock<PasswordHash> = LazyLock::new(|| {
+    let admin_password_string =
+        std::env::var("ADMIN_PASSWORD").expect("Missing ADMIN_PASSWORD environment variable");
+    Argon2::default()
+        .hash_password(admin_password_string.as_bytes(), &*ADMIN_PASSWORD_SALT)
+        .expect("Hashing failed")
 });
 
 /// To make local development easier, we set this flag in environment variables to set some cookie
@@ -136,7 +148,10 @@ pub async fn admin_login(
     State(state): State<Arc<AppState>>,
     Json(admin_login): Json<AdminLogin>,
 ) -> Result<String, AppError> {
-    if *ADMIN_PASSWORD != admin_login.password {
+    if Argon2::default()
+        .verify_password(admin_login.password.as_bytes(), &ADMIN_PASSWORD)
+        .is_ok()
+    {
         return Err(AppError::WrongAdminPassword);
     }
 
