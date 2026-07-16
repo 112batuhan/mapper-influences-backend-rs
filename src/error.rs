@@ -56,6 +56,9 @@ pub enum AppError {
     #[error("Unhandled Reqwest Error: {0}")]
     Reqwest(#[from] reqwest::Error),
 
+    #[error("osu! API returned an error status: {0}")]
+    OsuApiStatus(u16),
+
     #[error("Failed to decode json text: {0}")]
     SerdeJson(#[from] serde_json::Error),
 
@@ -113,6 +116,14 @@ impl IntoResponse for AppError {
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {
                 StatusCode::NOT_FOUND
             }
+            // Translate an upstream osu! API status into something meaningful for our clients.
+            // 401/403 mean our own credentials failed, so it's a gateway problem, not the
+            // caller's.
+            AppError::OsuApiStatus(status) => match status {
+                404 => StatusCode::NOT_FOUND,
+                429 => StatusCode::TOO_MANY_REQUESTS,
+                _ => StatusCode::BAD_GATEWAY,
+            },
         };
         // Internal error details (DB messages, upstream URLs, serialization dumps) are only
         // logged server-side; clients get a generic message
