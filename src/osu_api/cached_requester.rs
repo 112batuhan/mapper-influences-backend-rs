@@ -65,7 +65,7 @@ impl<T: DeserializeOwned + GetID + Clone + Send + 'static> CachedRequester<T> {
         }
 
         // Combine hits with newly fetched data
-        cache_result.hits.extend(add_to_cache.into_iter());
+        cache_result.hits.extend(add_to_cache);
 
         Ok(cache_result.hits)
     }
