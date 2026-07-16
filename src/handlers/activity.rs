@@ -495,7 +495,7 @@ async fn handle_socket(
     }
     let ws_sender_clone = Arc::clone(&ws_sender);
 
-    let websocket_task = tokio::spawn(async move {
+    let mut websocket_task = tokio::spawn(async move {
         loop {
             match ws_receiver.next().await {
                 Some(Ok(_)) => {
@@ -517,7 +517,7 @@ async fn handle_socket(
         }
     });
 
-    let broadcast_task = tokio::spawn(async move {
+    let mut broadcast_task = tokio::spawn(async move {
         loop {
             match broadcast_receiver.recv().await {
                 Ok(new_activity_string) => {
@@ -530,17 +530,28 @@ async fn handle_socket(
                         break;
                     }
                 }
-                Err(error) => {
-                    tracing::error!("Error receiving broadcast message: {}", error);
+                // A slow client can fall behind the bounded broadcast channel. That's not fatal:
+                // skip the dropped messages and keep serving instead of silently killing the feed.
+                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                    tracing::warn!(
+                        "Websocket for {} lagged behind, skipped {} activities",
+                        address,
+                        skipped
+                    );
+                }
+                Err(broadcast::error::RecvError::Closed) => {
+                    tracing::info!("Broadcast channel closed for {}", address);
                     break;
                 }
             }
         }
     });
 
+    // Whichever task finishes first (client disconnect or channel close), abort the other so it
+    // doesn't linger holding a broadcast receiver / sender half.
     tokio::select! {
-        _ = websocket_task => {},
-        _ = broadcast_task => {},
+        _ = &mut websocket_task => broadcast_task.abort(),
+        _ = &mut broadcast_task => websocket_task.abort(),
     }
 }
 
