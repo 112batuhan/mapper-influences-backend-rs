@@ -197,7 +197,8 @@ impl DatabaseClient {
                 "pending_beatmapset_count",
                 user_details.pending_beatmapset_count,
             ))
-            .await?;
+            .await?
+            .check()?;
         Ok(())
     }
 
@@ -205,7 +206,8 @@ impl DatabaseClient {
         self.db
             .query("UPDATE $thing SET authenticated = true")
             .bind(("thing", numerical_thing("user", user_id)))
-            .await?;
+            .await?
+            .check()?;
         Ok(())
     }
 
@@ -302,7 +304,8 @@ impl DatabaseClient {
             .bind(("order_array", enumerated_array))
             .query("UPDATE $thing SET updated_at = time::now()")
             .bind(("thing", numerical_thing("user", user_id)))
-            .await?;
+            .await?
+            .check()?;
         Ok(())
     }
 
