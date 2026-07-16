@@ -74,6 +74,9 @@ pub enum AppError {
     #[error("Error in activity preferences query")]
     ActivityPreferencesQuery,
 
+    #[error("Credentials grant token is unavailable")]
+    CredentialsTokenUnavailable,
+
     #[error("Parse int: {0}")]
     ParseInt(#[from] ParseIntError),
 }
@@ -98,6 +101,7 @@ impl IntoResponse for AppError {
             | AppError::SurrealDbSerialization(_)
             | AppError::StdIO(_)
             | AppError::ActivityPreferencesQuery
+            | AppError::CredentialsTokenUnavailable
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie
             | AppError::JwtVerification
