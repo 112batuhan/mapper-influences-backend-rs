@@ -80,7 +80,7 @@ impl CombinedRequester {
         let user_requester = Arc::new(CachedRequester::new(
             client.clone(),
             &format!("{}/api/v2/users", base_url),
-            24600,
+            21600,
         ));
         let beatmap_requester = Arc::new(CachedRequester::new(
             client.clone(),
