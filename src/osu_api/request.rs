@@ -73,11 +73,14 @@ where
         access_token: &str,
         query: &str,
     ) -> Result<OsuSearchUserResponse, AppError> {
-        let search_url = format!(
-            "https://osu.ppy.sh/api/v2/search/?mode=user&query={}",
-            query
-        );
-        let res_body_bytes = self.get_request(&search_url, access_token).await?;
+        // parse_with_params percent-encodes the user-supplied query so special characters
+        // can't inject extra query parameters into the upstream request
+        let search_url = reqwest::Url::parse_with_params(
+            "https://osu.ppy.sh/api/v2/search/",
+            &[("mode", "user"), ("query", query)],
+        )
+        .map_err(|error| AppError::BadUri(error.to_string()))?;
+        let res_body_bytes = self.get_request(search_url.as_str(), access_token).await?;
         Ok(serde_json::from_slice(&res_body_bytes)?)
     }
 

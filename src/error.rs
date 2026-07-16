@@ -85,9 +85,6 @@ struct ErrorMessage {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        let body = Json(ErrorMessage {
-            message: self.to_string(),
-        });
         let status_code = match self {
             AppError::UnhandledDb(_)
             | AppError::Reqwest(_)
@@ -113,6 +110,15 @@ impl IntoResponse for AppError {
                 StatusCode::NOT_FOUND
             }
         };
+        // Internal error details (DB messages, upstream URLs, serialization dumps) are only
+        // logged server-side; clients get a generic message
+        let message = if status_code == StatusCode::INTERNAL_SERVER_ERROR {
+            tracing::error!("Internal error while handling a request: {}", self);
+            "Internal server error".to_string()
+        } else {
+            self.to_string()
+        };
+        let body = Json(ErrorMessage { message });
         (status_code, body).into_response()
     }
 }
