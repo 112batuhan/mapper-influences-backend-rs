@@ -184,12 +184,22 @@ impl Requester for OsuApiRequestClient {
 
         let _permit = self.semaphore.acquire().await?;
         let res = self.client.get(url).headers(headers).send().await?;
+        let status = res.status();
+        if !status.is_success() {
+            // osu! error responses carry an unrelated JSON body, so returning it here would
+            // surface later as a confusing deserialization error. Fail early with the status.
+            return Err(AppError::OsuApiStatus(status.as_u16()));
+        }
         Ok(res.bytes().await?)
     }
 
     async fn post_request(&self, url: &str, body: AuthRequest) -> Result<Bytes, AppError> {
         let _permit = self.semaphore.acquire().await?;
         let res = self.client.post(url).json(&body).send().await?;
+        let status = res.status();
+        if !status.is_success() {
+            return Err(AppError::OsuApiStatus(status.as_u16()));
+        }
         Ok(res.bytes().await?)
     }
 }
