@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -154,8 +155,16 @@ pub struct OsuApiRequestClient {
 }
 impl OsuApiRequestClient {
     pub fn new(concurrent_requests: usize) -> OsuApiRequestClient {
+        // A total and connect timeout are required: both request methods hold a semaphore permit
+        // across the whole request, so a stalled upstream response would otherwise pin a permit
+        // forever and eventually starve every osu!-API-backed endpoint.
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .expect("failed to build reqwest client");
         OsuApiRequestClient {
-            client: reqwest::Client::new(),
+            client,
             semaphore: Semaphore::new(concurrent_requests),
         }
     }

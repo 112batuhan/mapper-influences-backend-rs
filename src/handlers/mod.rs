@@ -101,22 +101,32 @@ async fn swap_beatmaps(
     Ok(())
 }
 
+/// Maximum number of beatmap ids accepted in a single mutating request. This bounds the fan-out
+/// to the osu! API (requests are chunked 50 ids per upstream call, all sharing one small request
+/// semaphore) so a single authenticated request cannot monopolize it and stall every other
+/// osu!-API-backed endpoint.
+const MAX_BEATMAPS_PER_REQUEST: usize = 50;
+
 async fn check_multiple_maps(
     cached_combined_requester: Arc<CombinedRequester>,
     osu_token: &str,
     beatmaps: &[u32],
 ) -> Result<(), AppError> {
+    if beatmaps.len() > MAX_BEATMAPS_PER_REQUEST {
+        return Err(AppError::TooManyBeatmaps);
+    }
+
     let requested_beatmaps = cached_combined_requester
         .clone()
         .get_beatmaps_only(beatmaps, osu_token)
         .await?;
 
-    // efficient but not user friendly missing map warning
-    let first_missing_beatmap = requested_beatmaps
-        .keys()
-        .filter(|requested_map| !beatmaps.contains(requested_map))
-        .copied()
-        .next();
+    // The osu! API only returns beatmaps that exist, so any requested id missing from the
+    // response is a nonexistent map. Report the first one.
+    let first_missing_beatmap = beatmaps
+        .iter()
+        .find(|id| !requested_beatmaps.contains_key(*id))
+        .copied();
     if let Some(first_missing_map) = first_missing_beatmap {
         return Err(AppError::NonExistingMap(first_missing_map));
     }

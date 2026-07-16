@@ -65,6 +65,9 @@ pub enum AppError {
     #[error("Input string exceeds maximum length")]
     StringTooLong,
 
+    #[error("Too many beatmaps in a single request")]
+    TooManyBeatmaps,
+
     #[error("Std IO error: {0}")]
     StdIO(#[from] std::io::Error),
 
@@ -102,9 +105,10 @@ impl IntoResponse for AppError {
             AppError::MissingTokenCookie
             | AppError::JwtVerification
             | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
-            AppError::MissingLayerJson | AppError::StringTooLong | AppError::ParseInt(_) => {
-                StatusCode::UNPROCESSABLE_ENTITY
-            }
+            AppError::MissingLayerJson
+            | AppError::StringTooLong
+            | AppError::TooManyBeatmaps
+            | AppError::ParseInt(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {
                 StatusCode::NOT_FOUND
             }
