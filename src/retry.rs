@@ -14,6 +14,12 @@ pub trait Retryable<Value: Send + Sync, Err: Error + Send>: Send {
                     return value;
                 }
                 Err(error) => {
+                    let fibo_temp = cooldown;
+                    cooldown += cooldown_fibo_last;
+                    if cooldown > longest_cooldown {
+                        cooldown = longest_cooldown;
+                    }
+                    cooldown_fibo_last = fibo_temp;
                     tracing::error!(
                         "{}. Trying to reconnect. Attempt {}, Cooldown {} secs. full error: {}",
                         message,
@@ -21,12 +27,6 @@ pub trait Retryable<Value: Send + Sync, Err: Error + Send>: Send {
                         cooldown,
                         error
                     );
-                    let fibo_temp = cooldown;
-                    cooldown += cooldown_fibo_last;
-                    if cooldown > longest_cooldown {
-                        cooldown = longest_cooldown;
-                    }
-                    cooldown_fibo_last = fibo_temp;
                     attempt += 1;
                     tokio::time::sleep(Duration::from_secs(cooldown.into())).await;
                 }

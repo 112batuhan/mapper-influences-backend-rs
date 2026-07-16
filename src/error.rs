@@ -65,6 +65,9 @@ pub enum AppError {
     #[error("Input string exceeds maximum length")]
     StringTooLong,
 
+    #[error("Too many beatmaps in a single request")]
+    TooManyBeatmaps,
+
     #[error("Std IO error: {0}")]
     StdIO(#[from] std::io::Error),
 
@@ -82,9 +85,6 @@ struct ErrorMessage {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        let body = Json(ErrorMessage {
-            message: self.to_string(),
-        });
         let status_code = match self {
             AppError::UnhandledDb(_)
             | AppError::Reqwest(_)
@@ -102,13 +102,23 @@ impl IntoResponse for AppError {
             AppError::MissingTokenCookie
             | AppError::JwtVerification
             | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
-            AppError::MissingLayerJson | AppError::StringTooLong | AppError::ParseInt(_) => {
-                StatusCode::UNPROCESSABLE_ENTITY
-            }
+            AppError::MissingLayerJson
+            | AppError::StringTooLong
+            | AppError::TooManyBeatmaps
+            | AppError::ParseInt(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {
                 StatusCode::NOT_FOUND
             }
         };
+        // Internal error details (DB messages, upstream URLs, serialization dumps) are only
+        // logged server-side; clients get a generic message
+        let message = if status_code == StatusCode::INTERNAL_SERVER_ERROR {
+            tracing::error!("Internal error while handling a request: {}", self);
+            "Internal server error".to_string()
+        } else {
+            self.to_string()
+        };
+        let body = Json(ErrorMessage { message });
         (status_code, body).into_response()
     }
 }

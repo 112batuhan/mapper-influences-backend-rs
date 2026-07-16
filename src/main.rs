@@ -95,7 +95,7 @@ async fn main() {
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let port = std::env::var("PORT").expect("PORT enviroment variable is not set");
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", &port))
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
         .await
         .unwrap();
     info!("listening on {}", listener.local_addr().unwrap());
