@@ -51,3 +51,4 @@ calling osu! API every time. So if you make changes to the tests, delete the fil
 [Taplo](https://taplo.tamasfe.dev/) is a toml file toolkit. You can format and check formatting of toml files. It even has an LSP!
 
 For basic usage, run `cargo install taplo-cli --locked` and run `taplo fmt` to format the toml files.
+
