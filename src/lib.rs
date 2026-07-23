@@ -64,7 +64,7 @@ impl AppState {
             credentials_grant_client,
             user_leaderboard_cache: LeaderboardCache::new(300),
             beatmap_leaderboard_cache: LeaderboardCache::new(300),
-            graph_cache: GraphCache::new(600),
+            graph_cache: GraphCache::new(3600),
         })
     }
 }
