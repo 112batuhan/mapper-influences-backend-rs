@@ -3,7 +3,7 @@ use std::sync::Arc;
 use aide::axum::routing::{delete_with, get_with, patch_with, post_with};
 use aide::axum::ApiRouter;
 use axum::middleware;
-use axum::routing::any;
+use axum::routing::{any, get};
 use database::leaderboard::{LeaderboardBeatmap, LeaderboardUser};
 use database::DatabaseClient;
 use handlers::activity::ActivityTracker;
@@ -175,6 +175,7 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             }),
         )
         .route("/ws", any(handlers::activity::ws_handler))
+        .route("/og/user/:user_id", get(handlers::og::get_user_og))
         .api_route(
             "/oauth/osu-redirect",
             get_with(handlers::auth::osu_oauth2_redirect, |op| {

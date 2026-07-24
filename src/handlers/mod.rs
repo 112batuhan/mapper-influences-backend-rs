@@ -14,6 +14,7 @@ pub mod auth;
 pub mod graph_vizualizer;
 pub mod influence;
 pub mod leaderboard;
+pub mod og;
 pub mod osu_search;
 pub mod user;
 
