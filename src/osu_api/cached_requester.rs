@@ -57,7 +57,7 @@ impl<T: DeserializeOwned + Serialize + GetID + Clone + Send + 'static> CachedReq
     ) -> Result<HashMap<u32, T>, AppError> {
         // try to get the results from cache
         let mut cache_result: MultipleCacheResults<u32, T> =
-            self.cache.get_multiple(self.key_prefix, ids).await?;
+            self.cache.get_multiple(self.key_prefix, ids).await;
 
         if cache_result.misses.is_empty() {
             return Ok(cache_result.hits);
@@ -81,7 +81,7 @@ impl<T: DeserializeOwned + Serialize + GetID + Clone + Send + 'static> CachedReq
         // Update the cache with the new data
         self.cache
             .set_multiple(self.key_prefix, &add_to_cache, self.expire_in)
-            .await?;
+            .await;
 
         // Combine hits with newly fetched data
         cache_result.hits.extend(add_to_cache);
@@ -181,13 +181,11 @@ pub async fn cached_osu_user_request(
     user_id: u32,
 ) -> Result<UserOsu, AppError> {
     let cache_key = format!("{}{}", FULL_USER_KEY_PREFIX, user_id);
-    if let Some(user_osu) = cache.get::<UserOsu>(&cache_key).await? {
+    if let Some(user_osu) = cache.get::<UserOsu>(&cache_key).await {
         return Ok(user_osu);
     }
 
     let user_osu = client.get_user_osu(osu_token, user_id).await?;
-    cache
-        .set(&cache_key, &user_osu, FULL_USER_EXPIRATION)
-        .await?;
+    cache.set(&cache_key, &user_osu, FULL_USER_EXPIRATION).await;
     Ok(user_osu)
 }

@@ -42,11 +42,11 @@ async fn init_cache() -> (Arc<RedisCache>, ContainerAsync<Redis>) {
 async fn test_single_entry() {
     let (cache, _container) = init_cache().await;
 
-    let missing: Option<Dummy> = cache.get("dummy:1").await.unwrap();
+    let missing: Option<Dummy> = cache.get("dummy:1").await;
     assert_eq!(missing, None);
 
-    cache.set("dummy:1", &dummy(1), 60).await.unwrap();
-    let hit: Option<Dummy> = cache.get("dummy:1").await.unwrap();
+    cache.set("dummy:1", &dummy(1), 60).await;
+    let hit: Option<Dummy> = cache.get("dummy:1").await;
     assert_eq!(hit, Some(dummy(1)));
 }
 
@@ -55,22 +55,15 @@ async fn test_multiple_entries() {
     let (cache, _container) = init_cache().await;
 
     // no keys at all shouldn't reach redis
-    let empty = cache
-        .get_multiple::<u32, Dummy>("dummy:", &[])
-        .await
-        .unwrap();
+    let empty = cache.get_multiple::<u32, Dummy>("dummy:", &[]).await;
     assert!(empty.hits.is_empty());
     assert!(empty.misses.is_empty());
 
     cache
         .set_multiple("dummy:", &[(1, dummy(1)), (2, dummy(2))], 60)
-        .await
-        .unwrap();
+        .await;
 
-    let result = cache
-        .get_multiple::<u32, Dummy>("dummy:", &[1, 2, 3])
-        .await
-        .unwrap();
+    let result = cache.get_multiple::<u32, Dummy>("dummy:", &[1, 2, 3]).await;
     assert_eq!(result.hits.len(), 2);
     assert_eq!(result.hits.get(&1), Some(&dummy(1)));
     assert_eq!(result.hits.get(&2), Some(&dummy(2)));
@@ -82,9 +75,9 @@ async fn test_multiple_entries() {
 async fn test_unexpected_entry_shape() {
     let (cache, _container) = init_cache().await;
 
-    cache.set("dummy:1", &"not a dummy", 60).await.unwrap();
+    cache.set("dummy:1", &"not a dummy", 60).await;
 
-    let hit: Option<Dummy> = cache.get("dummy:1").await.unwrap();
+    let hit: Option<Dummy> = cache.get("dummy:1").await;
     assert_eq!(hit, None);
 }
 
@@ -92,19 +85,13 @@ async fn test_unexpected_entry_shape() {
 async fn test_expiration() {
     let (cache, _container) = init_cache().await;
 
-    cache.set("dummy:1", &dummy(1), 1).await.unwrap();
-    cache
-        .set_multiple("multiple:", &[(2, dummy(2))], 1)
-        .await
-        .unwrap();
+    cache.set("dummy:1", &dummy(1), 1).await;
+    cache.set_multiple("multiple:", &[(2, dummy(2))], 1).await;
     tokio::time::sleep(Duration::from_millis(1500)).await;
 
-    let expired: Option<Dummy> = cache.get("dummy:1").await.unwrap();
+    let expired: Option<Dummy> = cache.get("dummy:1").await;
     assert_eq!(expired, None);
-    let expired_multiple = cache
-        .get_multiple::<u32, Dummy>("multiple:", &[2])
-        .await
-        .unwrap();
+    let expired_multiple = cache.get_multiple::<u32, Dummy>("multiple:", &[2]).await;
     assert!(expired_multiple.hits.is_empty());
     assert_eq!(expired_multiple.misses, vec![2]);
 }

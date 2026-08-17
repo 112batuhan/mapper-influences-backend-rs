@@ -25,7 +25,7 @@ pub async fn osu_user_search(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<UserSmall>>, AppError> {
     let cache_key = format!("search:user:{}", path_query.value);
-    if let Some(users) = state.cache.get::<Vec<UserSmall>>(&cache_key).await? {
+    if let Some(users) = state.cache.get::<Vec<UserSmall>>(&cache_key).await {
         return Ok(Json(users));
     }
 
@@ -68,7 +68,7 @@ pub async fn osu_user_search(
     state
         .cache
         .set(&cache_key, &users, USER_SEARCH_EXPIRATION)
-        .await?;
+        .await;
     Ok(Json(users))
 }
 
@@ -79,7 +79,7 @@ pub async fn osu_beatmap_search(
 ) -> Result<Json<Vec<BeatmapsetSmall>>, AppError> {
     let uri = request.uri().to_string();
     let cache_key = format!("search:beatmap:{}", uri);
-    if let Some(beatmaps) = state.cache.get::<Vec<BeatmapsetSmall>>(&cache_key).await? {
+    if let Some(beatmaps) = state.cache.get::<Vec<BeatmapsetSmall>>(&cache_key).await {
         return Ok(Json(beatmaps));
     }
 
@@ -115,7 +115,7 @@ pub async fn osu_beatmap_search(
     state
         .cache
         .set(&cache_key, &beatmap_search, BEATMAP_SEARCH_EXPIRATION)
-        .await?;
+        .await;
     Ok(Json(beatmap_search))
 }
 

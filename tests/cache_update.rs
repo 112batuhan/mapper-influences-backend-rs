@@ -25,12 +25,11 @@ async fn test_refresh_fills_the_caches() {
             .user_leaderboard_cache
             .get_leaderboard(&global_key)
             .await
-            .unwrap()
             .is_none(),
         "the user leaderboard cache should start out empty"
     );
     assert!(
-        state.graph_cache.get_data().await.unwrap().is_none(),
+        state.graph_cache.get_data().await.is_none(),
         "the graph cache should start out empty"
     );
 
@@ -44,7 +43,6 @@ async fn test_refresh_fills_the_caches() {
             .user_leaderboard_cache
             .get_leaderboard(&global_key)
             .await
-            .unwrap()
             .is_some(),
         "the user leaderboard should be cached after a refresh"
     );
@@ -53,12 +51,11 @@ async fn test_refresh_fills_the_caches() {
             .beatmap_leaderboard_cache
             .get_leaderboard("false")
             .await
-            .unwrap()
             .is_some(),
         "the beatmap leaderboard should be cached after a refresh"
     );
     assert!(
-        state.graph_cache.get_data().await.unwrap().is_some(),
+        state.graph_cache.get_data().await.is_some(),
         "the graph data should be cached after a refresh"
     );
 }
@@ -81,15 +78,13 @@ async fn test_updaters_fill_the_caches_on_their_own() {
                 .user_leaderboard_cache
                 .get_leaderboard(&global_key)
                 .await
-                .unwrap()
                 .is_some();
             let beatmap_leaderboard = state
                 .beatmap_leaderboard_cache
                 .get_leaderboard("false")
                 .await
-                .unwrap()
                 .is_some();
-            let graph = state.graph_cache.get_data().await.unwrap().is_some();
+            let graph = state.graph_cache.get_data().await.is_some();
 
             if user_leaderboard && beatmap_leaderboard && graph {
                 break;

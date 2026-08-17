@@ -30,7 +30,8 @@ pub async fn refresh_user_leaderboard(state: &AppState, ranked: bool) -> Result<
     state
         .user_leaderboard_cache
         .add_leaderboard(&user_leaderboard_key(ranked, None), &leaderboard)
-        .await
+        .await;
+    Ok(())
 }
 
 pub async fn refresh_beatmap_leaderboard(state: &AppState, ranked: bool) -> Result<(), AppError> {
@@ -38,12 +39,14 @@ pub async fn refresh_beatmap_leaderboard(state: &AppState, ranked: bool) -> Resu
     state
         .beatmap_leaderboard_cache
         .add_leaderboard(&beatmap_leaderboard_key(ranked), &leaderboard)
-        .await
+        .await;
+    Ok(())
 }
 
 pub async fn refresh_graph(state: &AppState) -> Result<(), AppError> {
     let graph_data = state.db.get_graph_data().await?;
-    state.graph_cache.update(&graph_data).await
+    state.graph_cache.update(&graph_data).await;
+    Ok(())
 }
 
 /// The base updater every cache gets its own copy of. It rebuilds the entry once

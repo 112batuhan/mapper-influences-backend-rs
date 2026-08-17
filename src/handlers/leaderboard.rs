@@ -113,17 +113,16 @@ impl<V: Serialize + DeserializeOwned> LeaderboardCache<V> {
             value: PhantomData,
         }
     }
-    pub async fn get_leaderboard(&self, key: &str) -> Result<Option<Vec<V>>, AppError> {
+    pub async fn get_leaderboard(&self, key: &str) -> Option<Vec<V>> {
         let full_key = format!("{}{}", self.key_prefix, key);
         self.cache.get::<Vec<V>>(&full_key).await
     }
 
-    pub async fn add_leaderboard(&self, key: &str, leaderboard: &[V]) -> Result<(), AppError> {
+    pub async fn add_leaderboard(&self, key: &str, leaderboard: &[V]) {
         let full_key = format!("{}{}", self.key_prefix, key);
         self.cache
             .set(&full_key, &leaderboard, self.expire_in)
-            .await?;
-        Ok(())
+            .await
     }
 }
 
@@ -146,7 +145,7 @@ pub async fn get_user_leaderboard(
     let leaderboard = match state
         .user_leaderboard_cache
         .get_leaderboard(&cache_key)
-        .await?
+        .await
     {
         Some(leaderboard) => leaderboard,
         None => {
@@ -156,7 +155,7 @@ pub async fn get_user_leaderboard(
             state
                 .user_leaderboard_cache
                 .add_leaderboard(&cache_key, &leaderboard)
-                .await?;
+                .await;
             leaderboard
         }
     };
@@ -173,7 +172,7 @@ pub async fn get_beatmap_leaderboard(
     let leaderboard = match state
         .beatmap_leaderboard_cache
         .get_leaderboard(&cache_key)
-        .await?
+        .await
     {
         Some(leaderboard) => leaderboard,
         None => {
@@ -181,7 +180,7 @@ pub async fn get_beatmap_leaderboard(
             state
                 .beatmap_leaderboard_cache
                 .add_leaderboard(&cache_key, &leaderboard)
-                .await?;
+                .await;
             leaderboard
         }
     };

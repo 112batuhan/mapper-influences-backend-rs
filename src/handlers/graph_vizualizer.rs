@@ -16,11 +16,11 @@ impl GraphCache {
         GraphCache { cache, expire_in }
     }
 
-    pub async fn update(&self, data: &GraphData) -> Result<(), AppError> {
+    pub async fn update(&self, data: &GraphData) {
         self.cache.set(GRAPH_KEY, data, self.expire_in).await
     }
 
-    pub async fn get_data(&self) -> Result<Option<GraphData>, AppError> {
+    pub async fn get_data(&self) -> Option<GraphData> {
         self.cache.get(GRAPH_KEY).await
     }
 }
@@ -28,12 +28,12 @@ impl GraphCache {
 pub async fn get_graph_data(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<GraphData>, AppError> {
-    if let Some(cached_graph) = state.graph_cache.get_data().await? {
+    if let Some(cached_graph) = state.graph_cache.get_data().await {
         return Ok(Json(cached_graph));
     }
 
     let graph_data = state.db.get_graph_data().await?;
-    state.graph_cache.update(&graph_data).await?;
+    state.graph_cache.update(&graph_data).await;
 
     Ok(Json(graph_data))
 }
