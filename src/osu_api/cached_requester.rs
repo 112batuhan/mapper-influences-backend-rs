@@ -14,14 +14,19 @@ use super::{
     request::Requester, BeatmapsetSmall, GetID, OsuMultipleBeatmap, OsuMultipleUser, UserOsu,
 };
 
-/// Same as [`FULL_USER_EXPIRATION`], it's the same data behind both
-const USER_EXPIRATION: u64 = 21600;
+/// The same user is cached at two fidelities under two key spaces, and they have
+/// to stay apart. The compact one is what the batch endpoint returns, the full one
+/// only comes from the single user endpoint and carries the counts and the groups
+/// the batch one has no way of filling in. Sharing a key would mean the two
+/// overwrite each other on every id, and only one of the two directions would
+/// even fail loudly. Same lifetime for both, it's the same user underneath.
+const USER_COMPACT_EXPIRATION: u64 = 21600;
+const USER_FULL_EXPIRATION: u64 = 21600;
 const BEATMAP_EXPIRATION: u64 = 86400;
-const FULL_USER_EXPIRATION: u64 = 21600;
 
-const USER_KEY_PREFIX: &str = "osu:multiple_user:";
-const BEATMAP_KEY_PREFIX: &str = "osu:multiple_beatmap:";
-const FULL_USER_KEY_PREFIX: &str = "osu:user:";
+const USER_COMPACT_KEY_PREFIX: &str = "osu:user_compact:";
+const USER_FULL_KEY_PREFIX: &str = "osu:user_full:";
+const BEATMAP_KEY_PREFIX: &str = "osu:beatmap:";
 
 pub struct CachedRequester<T: DeserializeOwned + Serialize + GetID + Clone + Send + 'static> {
     pub client: Arc<dyn Requester>,
@@ -100,8 +105,8 @@ impl CombinedRequester {
             client.clone(),
             cache.clone(),
             &format!("{}/api/v2/users", base_url),
-            USER_KEY_PREFIX,
-            USER_EXPIRATION,
+            USER_COMPACT_KEY_PREFIX,
+            USER_COMPACT_EXPIRATION,
         ));
         let beatmap_requester = Arc::new(CachedRequester::new(
             client.clone(),
@@ -180,12 +185,12 @@ pub async fn cached_osu_user_request(
     osu_token: &str,
     user_id: u32,
 ) -> Result<UserOsu, AppError> {
-    let cache_key = format!("{}{}", FULL_USER_KEY_PREFIX, user_id);
+    let cache_key = format!("{}{}", USER_FULL_KEY_PREFIX, user_id);
     if let Some(user_osu) = cache.get::<UserOsu>(&cache_key).await {
         return Ok(user_osu);
     }
 
     let user_osu = client.get_user_osu(osu_token, user_id).await?;
-    cache.set(&cache_key, &user_osu, FULL_USER_EXPIRATION).await;
+    cache.set(&cache_key, &user_osu, USER_FULL_EXPIRATION).await;
     Ok(user_osu)
 }
