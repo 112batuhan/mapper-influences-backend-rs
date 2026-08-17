@@ -15,6 +15,7 @@ use osu_api::cached_requester::CombinedRequester;
 use osu_api::credentials_grant::CredentialsGrantClient;
 use osu_api::request::Requester;
 
+pub mod backup;
 pub mod cache;
 pub mod cache_update;
 pub mod daily_update;

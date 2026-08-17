@@ -13,7 +13,7 @@ ARG ADMIN_PASSWORD
 FROM rust:latest as rust-builder
 WORKDIR /usr/src/mapper_influences_backend
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --bin mapper-influences-backend
 
 FROM rust:slim
 WORKDIR /usr/src/mapper_influences_backend

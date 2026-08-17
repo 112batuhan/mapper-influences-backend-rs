@@ -1,0 +1,29 @@
+# Takes one backup and exits. Meant to be started on a schedule (a Railway cron
+# service, or any other cron), not left running.
+#
+# Unlike the server's Dockerfile this declares no ARG/ENV for its configuration.
+# Everything it needs is a secret, and anything baked in with ENV can be read
+# straight back out of the finished image. They are passed in at run time.
+
+FROM rust:latest AS rust-builder
+WORKDIR /usr/src/mapper_influences_backend
+COPY . .
+RUN cargo build --release --bin backup
+
+# The binary is all this image has to run, so it doesn't need the rust toolchain
+# around it. Only openssl, the compression libraries reqwest pulls in, and the
+# certificate store, without which every https call fails.
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libssl3 \
+        libbrotli1 \
+        libzstd1 \
+        zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/local/bin
+COPY --from=rust-builder /usr/src/mapper_influences_backend/target/release/backup .
+
+ENTRYPOINT ["./backup"]
