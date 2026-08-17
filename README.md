@@ -32,18 +32,15 @@ You might only want to run the database and the cache in docker, to do that just
 `docker compose up surrealdb redis -d`
 
 #### Cache
-Responses from the osu! API, leaderboards and the graph data are cached in redis. 
-Point `REDIS_URL` to your instance, every entry gets a TTL so no manual invalidation is needed.
+Responses from the osu! API, leaderboards and the graph data are cached in redis. Point
+`REDIS_URL` at your instance, every entry has a TTL so nothing needs invalidating by hand.
 
-The country agnostic leaderboards and the graph data are rebuilt in the background, so requests 
-don't have to wait for a cache miss to be filled. Each cached entry gets its own updater task 
-with its own interval: 5 minutes for the leaderboards, 20 minutes for the heavier graph query. 
-All of them run once at startup to warm a cold cache. After that the rebuilds are database 
-heavy enough to keep out of each other's way, so they are spaced 20 seconds apart for every 
-cycle that follows. Every TTL is longer than the interval it belongs to, 
-which means a failed rebuild keeps serving the previous data instead of falling back to an empty 
-cache. Set `CACHE_REFRESH=false` to turn the updaters off, everything then falls back to being 
-filled on demand. Country specific leaderboards are always filled on demand.
+The country agnostic leaderboards and the graph data are also rebuilt in the background, each by
+its own task: every 5 minutes for the leaderboards, 20 for the heavier graph query. They all run
+once at startup, then keep 20 seconds apart so their queries don't pile onto the database at the
+same time. Every TTL outlives its own interval, so a failed rebuild keeps serving the previous
+data instead of emptying the cache. `CACHE_REFRESH=false` turns the tasks off and everything falls
+back to being filled on demand, which is what country specific leaderboards always do.
 
 #### To run locally
 `cargo run --release`
@@ -54,40 +51,40 @@ It's a script to insert MongoDB data into SurrealDB. Don't use in production. I'
 `cargo run --bin conversion`
 
 ## Backups
-The `backup` binary takes one SurrealQL dump of the database, checks it, gzips it, uploads it to an 
-S3 compatible bucket (Cloudflare R2), restores it again to prove it works, and only then deletes 
-everything past `BACKUP_RETENTION`. It takes a backup and exits, so it can be run on a schedule.
+`scripts/backup.sh` takes one dump and exits, so it can be run on a schedule:
 
-These dumps are plain text, which is the point of them. A volume snapshot is tied to the storage 
-format the database wrote it in, so it stops being restorable the moment a newer version upgrades 
-that format on disk. A dump imports into any SurrealDB.
+    export -> check it -> gzip -> upload to R2 -> download it back -> restore it -> prune old ones
 
-```
-cargo run --bin backup
-```
+The dumps are SurrealQL text rather than volume snapshots. A snapshot is tied to the storage format
+the database wrote it in and stops being restorable once a newer version upgrades that format on
+disk, which is how a database gets lost. A dump imports into any SurrealDB.
 
-It reads `SURREAL_URL`, `SURREAL_USER` and `SURREAL_PASS` (the same ones the server uses, the 
-export endpoint is http on the same host) plus the `R2_*` variables in `.env.example`. Set 
-`SURREAL_HTTP_URL` if the database isn't in the usual place, and `SURREAL_NAMESPACE` / 
-`SURREAL_DATABASE` if they aren't `prod`.
+It restores every dump before that dump counts as taken: downloading it back out of the bucket
+(so the upload is tested too), into a SurrealDB started in memory in the same container, with
+`scripts/restore.sh` (so the script the runbook uses is the script that gets tested). Pruning
+happens last, so an upload or a restore that failed never costs an older backup that still works.
+A failed run exits non-zero.
 
-#### Where the R2 credentials come from
-In the Cloudflare dashboard, under R2 Object Storage:
+| Variable | |
+|---|---|
+| `SURREAL_URL` | the database to back up, `SURREAL_HTTP_URL` overrides it |
+| `SURREAL_USER`, `SURREAL_PASS` | root credentials |
+| `SURREAL_NAMESPACE`, `SURREAL_DATABASE` | default `prod` / `prod` |
+| `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com`, no bucket on the end |
+| `R2_BUCKET` | |
+| `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | |
+| `BACKUP_PREFIX` | folder inside the bucket, default `surrealdb` |
+| `BACKUP_RETENTION` | how many dumps to keep, default 30 |
+| `BACKUP_VERIFY` | `false` skips the restore check |
 
-1. Create a bucket. Its name goes in `R2_BUCKET`.
-2. The bucket's settings page shows its **S3 API** endpoint, which is your account id followed by 
-   `r2.cloudflarestorage.com`. `R2_ENDPOINT` is that url **without** the bucket name on the end, 
-   so `https://<account-id>.r2.cloudflarestorage.com`.
-3. **Manage R2 API tokens** → create an API token. **Object Read & Write** is enough, scoped to 
-   that one bucket. The bucket is created by hand in step 1, so the token never needs admin rights.
-4. The token page shows the **Access Key ID** and the **Secret Access Key** → `R2_ACCESS_KEY_ID` 
-   and `R2_SECRET_ACCESS_KEY`. The secret is shown once, so save it before leaving the page.
+The R2 values come from the Cloudflare dashboard under R2 Object Storage: create a bucket, take its
+**S3 API** endpoint, then **Manage R2 API tokens** → create one with **Object Read & Write** scoped
+to that bucket.
 
-`R2_REGION` stays `auto`; R2 has no regions but the S3 protocol insists on one being set.
-
-It has its own image, `Dockerfile.backup`, which builds only this binary and runs it as the 
-entrypoint, alongside the `surreal` binary and the restore script it checks its own work with. 
-That comes out around 165MB, against the server's rust based image.
+#### Running it
+`Dockerfile.backup` is the cron image: debian with `curl`, `jq`, `gzip`, the `surreal` binary for
+the scratch database, `mc` for the bucket, and the two scripts. Nothing is compiled, so it builds
+in seconds and comes out around 190MB.
 
 ```
 docker build -f Dockerfile.backup -t mapper-influences-backup .
@@ -96,79 +93,27 @@ docker run --rm --env-file .env mapper-influences-backup
 
 
 #### Restoring
-`scripts/restore.sh` puts a dump back. It takes the file, gzipped or not, and reads the same 
-`SURREAL_*` variables as everything else, from the environment or from `.env`:
+`scripts/restore.sh <dump-file>` puts a dump back, gzipped or not, reading the same `SURREAL_*`
+variables as everything else. `RESTORE_FORCE=true` allows a target that already holds records.
 
-```
-scripts/restore.sh surrealdb-prod-prod-20260818T000000Z.surql.gz
-```
+Four things about restoring a SurrealDB dump, all of which the script handles:
 
-```
-SURREAL_HTTP_URL=http://localhost:8000 SURREAL_USER=root SURREAL_PASS=root \
-SURREAL_NAMESPACE=restore SURREAL_DATABASE=restore \
-  scripts/restore.sh dump.surql
-```
+- **It imports twice.** The export writes tables alphabetically, so the `influenced_by` edges come
+  before the `user` records they point at, and that table is `TYPE RELATION ... ENFORCED`, so
+  SurrealDB rejects an edge whose vertices don't exist yet and one bad reference fails the whole
+  batched statement. A single pass restores every user and activity and silently drops the entire
+  influence graph, which looks perfectly healthy unless you count. The second pass puts the edges
+  back, and the script fails if the dump holds edges and none of them made it.
+- **A 200 doesn't mean it worked.** The import reports failures inside the response body, one
+  result per statement. `already exists` on the second pass is expected, anything else is a failed
+  restore.
+- **Restore into an empty namespace and swap over.** A dump merges into whatever is already there
+  rather than replacing it.
+- **The dumps carry no `script_migration` rows**, so a restored database looks unmigrated to
+  `surrealdb-migrations` even though the schema is in place.
 
-It unpacks the dump if needed, refuses to run against a database that already holds records, 
-imports, checks the result and prints what landed:
-
-```
-restoring 23M into prod/prod at http://127.0.0.1:18002
-import pass 1 ...
-  123/146 statements applied
-import pass 2 ...
-  17/146 statements applied
-
-restored:
-  user             5363
-  influenced_by    16006
-  activity         71000
-```
-
-**Why it imports twice.** The export writes tables alphabetically, so the `influenced_by` edges 
-come before the `user` records they point at, and SurrealDB rejects an edge whose vertices don't 
-exist yet. One bad reference fails the whole batched statement, so a single pass restores every 
-user and activity and silently drops the entire influence graph — the tables that are left look 
-perfectly healthy unless you count. The second pass, with the users in place, puts the edges back. 
-The script fails loudly if the dump holds edges and none of them made it.
-
-**Why it reads the response.** The import answers `200` even when statements inside it failed; the 
-errors are in the body, one result per statement. The script treats `already exists` on the second 
-pass as expected (it re-runs every schema definition) and anything else as a failed restore.
-
-Three more things worth knowing:
-
-- **Restore into an empty namespace and swap over.** A dump merges into whatever is already there 
-  rather than replacing it. The script refuses a non-empty target unless `RESTORE_FORCE=true`.
-- **A 3.x `surreal` CLI cannot talk to a 2.x server.** It speaks `POST /rpc` and gets a 400, which 
-  is why this is a curl script and not `surreal import`.
-- **The dumps carry no `script_migration` rows.** The schema is in there, the migration history 
-  isn't, so a restored database looks unmigrated to `surrealdb-migrations` and it will try to 
-  apply everything again over a database that already has the schema.
-
-#### Every backup is restored before it counts
-A backup nobody has restored is a hypothesis, so the job doesn't trust its own work. After 
-uploading, it downloads the dump back out of the bucket, starts a SurrealDB **in memory inside the 
-same container**, restores into it with the very same `scripts/restore.sh` above, and checks that 
-the users, influences and activities all came back. Only then does it prune. A dump that doesn't 
-restore fails the run and takes no older backup down with it.
-
-```
-INFO backup: uploading surrealdb/prod-prod-20260818T000000Z.surql.gz (6449 bytes, 1401 compressed)
-INFO backup: restoring surrealdb/prod-prod-20260818T000000Z.surql.gz to check it
-INFO backup: restore check passed: [("user", 40), ("influenced_by", 39), ("activity", 1)]
-```
-
-Downloading it back rather than keeping the dump in memory is deliberate: it makes the upload part 
-of what gets tested. Using the restore script rather than a second implementation is deliberate 
-too, a private copy of the restore logic would only prove the private copy works.
-
-This needs no docker, which is why it can run as a plain cron service. `Dockerfile.backup` carries 
-the `surreal` binary for the scratch database, and the restore script with the `curl` and `jq` it 
-needs. Restoring the whole production database this way peaks around 400MB of memory.
-
-Set `BACKUP_VERIFY=false` to skip it, for running the binary somewhere without those pieces. The 
-run then warns that the dumps are going out unchecked.
+A 3.x `surreal` CLI cannot talk to a 2.x server, which is why these are curl scripts rather than
+`surreal export` / `surreal import`.
 
 ### How to run tests
 Tests utilize [Testcontainers](https://testcontainers.com/) to set up a new database for each test function. 

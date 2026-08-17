@@ -8,10 +8,6 @@ version = "0.1.0"
 name = "mapper-influences-backend"
 path = "src/main.rs"
 
-[[bin]]
-name = "backup"
-path = "src/backup.rs"
-
 [dependencies]
 aide = { version = "0.13", features = ["axum", "axum-extra", "macros"] }
 argon2 = "0.5"
@@ -22,7 +18,6 @@ axum-swagger-ui = "0.3.0"
 bytes = { version = "1.8.0", features = ["serde"] }
 chrono = "0.4.38"
 dotenvy = "0.15.7"
-flate2 = "1.0"
 futures = "0.3.31"
 http = "1.1.0"
 itertools = "0.13.0"
@@ -32,7 +27,6 @@ jwt-simple = { version = "0.12.10", default-features = false, features = [
 rand_core = "0.6"
 redis = { version = "1.6.0", features = ["connection-manager", "tokio-comp"] }
 reqwest = { version = "0.12", features = ["json"] }
-rusty-s3 = "0.10.2"
 schemars = { version = "0.8.16", features = ["chrono"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
@@ -47,7 +41,6 @@ tower-http = { version = "0.6.1", features = [
 ] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-url = "2.5.8"
 
 [patch.crates-io]
 serde = { git = "https://github.com/frederik-uni/serde" }

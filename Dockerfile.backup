@@ -1,42 +1,35 @@
 # Takes one backup and exits. Meant to be started on a schedule (a Railway cron
 # service, or any other cron), not left running.
 #
-# Unlike the server's Dockerfile this declares no ARG/ENV for its configuration.
-# Everything it needs is a secret, and anything baked in with ENV can be read
-# straight back out of the finished image. They are passed in at run time.
+# It's all shell: `backup.sh` exports, uploads and checks its own work, and
+# `restore.sh` imports. Nothing is compiled here, so the image builds in seconds.
+#
+# It declares no ARG/ENV for its configuration on purpose. Everything it needs is
+# a secret, and anything baked in with ENV can be read straight back out of the
+# finished image. They are passed in at run time.
 
-# Pinned to the same debian release as the runtime below. `rust:latest` follows
-# whatever debian is current, and a builder on a newer glibc than the runtime
-# produces a binary the runtime can't load.
-FROM rust:1-bookworm AS rust-builder
-WORKDIR /usr/src/mapper_influences_backend
-COPY . .
-RUN cargo build --release --bin backup
-
-# The binary is all this image has to run, so it doesn't need the rust toolchain
-# around it. Only openssl, the compression libraries reqwest pulls in, and the
-# certificate store, without which every https call fails. curl and jq are what
-# the restore script is written in.
 FROM debian:bookworm-slim
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        libssl3 \
-        libbrotli1 \
-        libzstd1 \
-        zlib1g \
         curl \
         jq \
+        gzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Every backup is restored into a scratch database before it counts as taken, and
-# this is what that database runs on. In memory, in this container, so it needs no
-# docker and touches nothing real. Keep the tag matching the server in production,
-# a dump that only restores into some other version is not the news we want.
+# The database a dump is restored into to prove it restores. In memory, in this
+# container, so it needs no docker and touches nothing real. Keep the tag matching
+# the server in production, a dump that only restores into some other version is
+# not the news we want to get.
 COPY --from=surrealdb/surrealdb:v2.6.5 /surreal /usr/local/bin/surreal
 
-WORKDIR /usr/local/bin
-COPY --from=rust-builder /usr/src/mapper_influences_backend/target/release/backup .
+# Talks to R2, and to whatever else the bucket might move to one day. It's here so
+# the scripts never have to sign an S3 request by hand.
+COPY --from=minio/mc:latest /usr/bin/mc /usr/local/bin/mc
+
+COPY scripts/backup.sh /usr/local/bin/backup.sh
 COPY scripts/restore.sh /usr/local/bin/restore.sh
 
-ENTRYPOINT ["./backup"]
+WORKDIR /usr/local/bin
+ENTRYPOINT ["/usr/local/bin/backup.sh"]
