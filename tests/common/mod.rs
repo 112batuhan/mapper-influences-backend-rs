@@ -1,3 +1,7 @@
+// Every test binary compiles this module on its own, so whatever a single one of
+// them doesn't touch looks dead from its point of view
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
 use axum::Router;
@@ -15,8 +19,12 @@ use testcontainers_modules::{
     surrealdb::{SurrealDb, SURREALDB_PORT},
     testcontainers::{runners::AsyncRunner, ContainerAsync, ImageExt},
 };
+use tokio::sync::Mutex;
 
 pub mod osu_test_client;
+
+/// See where it's used, migrations are not safe to run side by side
+static MIGRATION_LOCK: Mutex<()> = Mutex::const_new(());
 
 /// Containers are dropped when this is dropped, so tests have to keep it alive
 pub struct TestContainers {
@@ -24,7 +32,15 @@ pub struct TestContainers {
     pub _redis: ContainerAsync<Redis>,
 }
 
-pub async fn init_test_env(label: &str) -> (TestServer, Arc<OsuApiTestClient>, TestContainers) {
+pub struct TestEnv {
+    pub server: TestServer,
+    pub requester: Arc<OsuApiTestClient>,
+    /// For the tests that need to reach past the endpoints, like the background routines
+    pub state: Arc<AppState>,
+    pub _containers: TestContainers,
+}
+
+pub async fn init_test_env(label: &str) -> TestEnv {
     dotenvy::dotenv().ok();
 
     // Think of this as join handler. we need to keep the reference alive.
@@ -47,10 +63,16 @@ pub async fn init_test_env(label: &str) -> (TestServer, Arc<OsuApiTestClient>, T
         .await
         .expect("failed to initialize db connection");
 
-    MigrationRunner::new(db.get_inner_ref())
-        .up()
-        .await
-        .expect("Failed to apply migrations");
+    {
+        // Applying migrations rewrites `migrations/migrations/definitions/_initial.json`,
+        // and a concurrent runner reads that file while it's still empty. The databases
+        // are separate, the file isn't, so only one test at a time gets to migrate.
+        let _migration_guard = MIGRATION_LOCK.lock().await;
+        MigrationRunner::new(db.get_inner_ref())
+            .up()
+            .await
+            .expect("Failed to apply migrations");
+    }
 
     // Every test gets its own redis instance, so caches don't leak between tests.
     // The module defaults to redis 5.0, so the tag is pinned to the one in docker compose
@@ -92,14 +114,15 @@ pub async fn init_test_env(label: &str) -> (TestServer, Arc<OsuApiTestClient>, T
     // The exact routes and middleware the binary serves, without the openapi
     // documentation. `ApiRouter` can't be handed to axum_test directly, but it
     // converts into a plain `Router`
-    let routes = Router::from(routes(state.clone())).with_state(state);
+    let routes = Router::from(routes(state.clone())).with_state(state.clone());
     let test_server = TestServer::new(routes).expect("failed to initialize test server");
-    (
-        test_server,
-        test_request_client,
-        TestContainers {
+    TestEnv {
+        server: test_server,
+        requester: test_request_client,
+        state,
+        _containers: TestContainers {
             _surrealdb: surrealdb_container,
             _redis: redis_container,
         },
-    )
+    }
 }

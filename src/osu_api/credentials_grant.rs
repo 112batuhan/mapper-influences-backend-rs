@@ -76,35 +76,36 @@ impl CredentialsGrantClient {
 
     /// Starting the loop lazily after the first token access.
     /// This is necessary for tests. We don't want to request token if we don't need to.
+    ///
+    /// Both the sender and the receiver are only there for the very first caller.
+    /// Callers that arrive while the first token is still in flight take neither,
+    /// they just queue up on the receiver lock until the token is published.
     pub async fn get_access_token(&self) -> Result<String, AppError> {
         if let Some(token) = self.get_token_only()? {
-            Ok(token)
-        } else {
-            // this is a good place to panic. There is no way for the sender and receivers to drop.
-            // If it does, then rest of the app probably isn't working
-            self.start_sender
-                .lock()
-                .await
-                .deref_mut()
-                .take()
-                .expect("start sender is missing")
-                .send(())
-                .expect("Failed to send start message");
-
-            self.end_receiver
-                .lock()
-                .await
-                .deref_mut()
-                .take()
-                .expect("end receiver is missing")
-                .await
-                .expect("Failed receive end message");
-            let token_guard = self.token.read().map_err(|_| AppError::RwLock)?;
-            let Some(token) = token_guard.clone() else {
-                panic!("Failed to initialize client grant token")
-            };
-            Ok(token)
+            return Ok(token);
         }
+
+        {
+            let mut start_sender = self.start_sender.lock().await;
+            if let Some(sender) = start_sender.deref_mut().take() {
+                // this is a good place to panic. There is no way for the receiver to drop.
+                // If it does, then rest of the app probably isn't working
+                sender.send(()).expect("Failed to send start message");
+            }
+        }
+
+        {
+            let mut end_receiver = self.end_receiver.lock().await;
+            if let Some(receiver) = end_receiver.deref_mut().take() {
+                receiver.await.expect("Failed receive end message");
+            }
+        }
+
+        let token_guard = self.token.read().map_err(|_| AppError::RwLock)?;
+        let Some(token) = token_guard.clone() else {
+            panic!("Failed to initialize client grant token")
+        };
+        Ok(token)
     }
 
     /// Ease of use to get user data since we already contain the client inside

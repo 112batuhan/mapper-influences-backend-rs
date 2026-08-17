@@ -16,6 +16,7 @@ use osu_api::credentials_grant::CredentialsGrantClient;
 use osu_api::request::Requester;
 
 pub mod cache;
+pub mod cache_update;
 pub mod daily_update;
 pub mod database;
 pub mod documentation;
@@ -24,6 +25,11 @@ pub mod handlers;
 pub mod jwt;
 pub mod osu_api;
 pub mod retry;
+
+/// Both are comfortably longer than the refresh interval of the cache they belong
+/// to, so that a failed refresh cycle doesn't leave the endpoint with a cold cache
+const LEADERBOARD_CACHE_EXPIRATION: u64 = 3 * cache_update::LEADERBOARD_REFRESH_INTERVAL.as_secs();
+const GRAPH_CACHE_EXPIRATION: u64 = 3 * cache_update::GRAPH_REFRESH_INTERVAL.as_secs();
 
 pub struct AppState {
     pub db: Arc<DatabaseClient>,
@@ -65,13 +71,19 @@ impl AppState {
             cached_combined_requester,
             activity_tracker,
             credentials_grant_client,
-            user_leaderboard_cache: LeaderboardCache::new(cache.clone(), "leaderboard:user:", 300),
+            // These are kept warm by the routines in [`cache_update`], so the TTLs
+            // only decide how long a stale entry is served when a refresh fails
+            user_leaderboard_cache: LeaderboardCache::new(
+                cache.clone(),
+                "leaderboard:user:",
+                LEADERBOARD_CACHE_EXPIRATION,
+            ),
             beatmap_leaderboard_cache: LeaderboardCache::new(
                 cache.clone(),
                 "leaderboard:beatmap:",
-                300,
+                LEADERBOARD_CACHE_EXPIRATION,
             ),
-            graph_cache: GraphCache::new(cache.clone(), 600),
+            graph_cache: GraphCache::new(cache.clone(), GRAPH_CACHE_EXPIRATION),
             cache,
         })
     }

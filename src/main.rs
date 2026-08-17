@@ -9,6 +9,10 @@ use axum::{
 use axum_swagger_ui::swagger_ui;
 use mapper_influences_backend_rs::{
     cache::RedisCache,
+    cache_update::{
+        spawn_cache_updaters, GRAPH_REFRESH_INTERVAL, LEADERBOARD_REFRESH_INTERVAL,
+        UPDATER_START_STAGGER,
+    },
     daily_update::update_routine,
     database::DatabaseClient,
     osu_api::{credentials_grant::CredentialsGrantClient, request::OsuApiRequestClient},
@@ -40,6 +44,19 @@ async fn main() {
         .await
         .expect("Failed to initialize credentials grant client");
     let state = AppState::new(request, credentials_grant_client.clone(), db.clone(), cache).await;
+
+    // Opt out for local development, where the background osu! API traffic is rarely wanted
+    let refresh_var = std::env::var("CACHE_REFRESH");
+    if !refresh_var.is_ok_and(|value| value.to_lowercase() == "false") {
+        info!(
+            "refreshing the leaderboard caches every {} seconds and the graph cache every {} seconds, \
+            warming all of them now and spacing them {} seconds apart afterwards",
+            LEADERBOARD_REFRESH_INTERVAL.as_secs(),
+            GRAPH_REFRESH_INTERVAL.as_secs(),
+            UPDATER_START_STAGGER.as_secs(),
+        );
+        spawn_cache_updaters(state.clone(), UPDATER_START_STAGGER);
+    }
 
     let start_var = std::env::var("DAILY_UPDATE");
     if start_var.is_ok_and(|value| value.to_lowercase() == "true") {

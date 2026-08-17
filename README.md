@@ -35,6 +35,16 @@ You might only want to run the database and the cache in docker, to do that just
 Responses from the osu! API, leaderboards and the graph data are cached in redis. 
 Point `REDIS_URL` to your instance, every entry gets a TTL so no manual invalidation is needed.
 
+The country agnostic leaderboards and the graph data are rebuilt in the background, so requests 
+don't have to wait for a cache miss to be filled. Each cached entry gets its own updater task 
+with its own interval: 5 minutes for the leaderboards, 20 minutes for the heavier graph query. 
+All of them run once at startup to warm a cold cache. After that the rebuilds are database 
+heavy enough to keep out of each other's way, so they are spaced 20 seconds apart for every 
+cycle that follows. Every TTL is longer than the interval it belongs to, 
+which means a failed rebuild keeps serving the previous data instead of falling back to an empty 
+cache. Set `CACHE_REFRESH=false` to turn the updaters off, everything then falls back to being 
+filled on demand. Country specific leaderboards are always filled on demand.
+
 #### To run locally
 `cargo run --release`
 
