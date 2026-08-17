@@ -56,5 +56,9 @@ serde = { git = "https://github.com/frederik-uni/serde" }
 axum-test = { version = "16.4.0", features = ["ws"] }
 flate2 = "1.0"
 futures = "0.3.31"
-testcontainers-modules = { version = "0.11.4", features = ["minio", "redis", "surrealdb"] }
+testcontainers-modules = { version = "0.11.4", features = [
+    "minio",
+    "redis",
+    "surrealdb",
+] }
 uuid = "1.11"

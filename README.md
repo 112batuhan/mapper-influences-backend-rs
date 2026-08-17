@@ -54,9 +54,9 @@ It's a script to insert MongoDB data into SurrealDB. Don't use in production. I'
 `cargo run --bin conversion`
 
 ## Backups
-The `backup` binary takes one SurrealQL dump of the database, checks it, gzips it and uploads it 
-to an S3 compatible bucket (Cloudflare R2), then deletes everything past `BACKUP_RETENTION`. It 
-takes a backup and exits, so it can be run on a schedule.
+The `backup` binary takes one SurrealQL dump of the database, checks it, gzips it, uploads it to an 
+S3 compatible bucket (Cloudflare R2), restores it again to prove it works, and only then deletes 
+everything past `BACKUP_RETENTION`. It takes a backup and exits, so it can be run on a schedule.
 
 These dumps are plain text, which is the point of them. A volume snapshot is tied to the storage 
 format the database wrote it in, so it stops being restorable the moment a newer version upgrades 
@@ -86,42 +86,89 @@ In the Cloudflare dashboard, under R2 Object Storage:
 `R2_REGION` stays `auto`; R2 has no regions but the S3 protocol insists on one being set.
 
 It has its own image, `Dockerfile.backup`, which builds only this binary and runs it as the 
-entrypoint. Nothing else is in there, so it comes out around 100MB against the server's rust 
-based image.
+entrypoint, alongside the `surreal` binary and the restore script it checks its own work with. 
+That comes out around 165MB, against the server's rust based image.
 
 ```
 docker build -f Dockerfile.backup -t mapper-influences-backup .
 docker run --rm --env-file .env mapper-influences-backup
 ```
 
-#### Running it on a schedule in Railway
-Add a service pointing at this same repo, set its Dockerfile path to `Dockerfile.backup`, and give 
-it a cron schedule. Point its `SURREAL_URL` at the private domain, backups don't need the database 
-to be reachable from the internet. A failed backup exits non-zero, so a broken run is reported as 
-failed instead of quietly doing nothing.
-
-The credentials are given to the container at run time and are deliberately not build arguments: 
-anything baked in with `ENV` can be read back out of the image.
 
 #### Restoring
-Two things will bite you here, so they're worth knowing before you need them:
+`scripts/restore.sh` puts a dump back. It takes the file, gzipped or not, and reads the same 
+`SURREAL_*` variables as everything else, from the environment or from `.env`:
 
-- **A 3.x `surreal` CLI cannot talk to a 2.x server.** It speaks `POST /rpc` and gets a 400. Use 
-  `curl` against the http endpoints, or install a matching 2.x CLI.
+```
+scripts/restore.sh surrealdb-prod-prod-20260818T000000Z.surql.gz
+```
+
+```
+SURREAL_HTTP_URL=http://localhost:8000 SURREAL_USER=root SURREAL_PASS=root \
+SURREAL_NAMESPACE=restore SURREAL_DATABASE=restore \
+  scripts/restore.sh dump.surql
+```
+
+It unpacks the dump if needed, refuses to run against a database that already holds records, 
+imports, checks the result and prints what landed:
+
+```
+restoring 23M into prod/prod at http://127.0.0.1:18002
+import pass 1 ...
+  123/146 statements applied
+import pass 2 ...
+  17/146 statements applied
+
+restored:
+  user             5363
+  influenced_by    16006
+  activity         71000
+```
+
+**Why it imports twice.** The export writes tables alphabetically, so the `influenced_by` edges 
+come before the `user` records they point at, and SurrealDB rejects an edge whose vertices don't 
+exist yet. One bad reference fails the whole batched statement, so a single pass restores every 
+user and activity and silently drops the entire influence graph — the tables that are left look 
+perfectly healthy unless you count. The second pass, with the users in place, puts the edges back. 
+The script fails loudly if the dump holds edges and none of them made it.
+
+**Why it reads the response.** The import answers `200` even when statements inside it failed; the 
+errors are in the body, one result per statement. The script treats `already exists` on the second 
+pass as expected (it re-runs every schema definition) and anything else as a failed restore.
+
+Three more things worth knowing:
+
+- **Restore into an empty namespace and swap over.** A dump merges into whatever is already there 
+  rather than replacing it. The script refuses a non-empty target unless `RESTORE_FORCE=true`.
+- **A 3.x `surreal` CLI cannot talk to a 2.x server.** It speaks `POST /rpc` and gets a 400, which 
+  is why this is a curl script and not `surreal import`.
 - **The dumps carry no `script_migration` rows.** The schema is in there, the migration history 
   isn't, so a restored database looks unmigrated to `surrealdb-migrations` and it will try to 
   apply everything again over a database that already has the schema.
 
+#### Every backup is restored before it counts
+A backup nobody has restored is a hypothesis, so the job doesn't trust its own work. After 
+uploading, it downloads the dump back out of the bucket, starts a SurrealDB **in memory inside the 
+same container**, restores into it with the very same `scripts/restore.sh` above, and checks that 
+the users, influences and activities all came back. Only then does it prune. A dump that doesn't 
+restore fails the run and takes no older backup down with it.
+
 ```
-# Download and unpack a dump from the bucket, then
-curl -X POST "$SURREAL_HTTP_URL/import" \
-  -u "$SURREAL_USER:$SURREAL_PASS" \
-  -H "surreal-ns: prod" -H "surreal-db: prod" \
-  --data-binary @backup.surql
+INFO backup: uploading surrealdb/prod-prod-20260818T000000Z.surql.gz (6449 bytes, 1401 compressed)
+INFO backup: restoring surrealdb/prod-prod-20260818T000000Z.surql.gz to check it
+INFO backup: restore check passed: [("user", 40), ("influenced_by", 39), ("activity", 1)]
 ```
 
-Restore into a throwaway local database once in a while. A backup you have never restored is a 
-hypothesis, not a backup.
+Downloading it back rather than keeping the dump in memory is deliberate: it makes the upload part 
+of what gets tested. Using the restore script rather than a second implementation is deliberate 
+too, a private copy of the restore logic would only prove the private copy works.
+
+This needs no docker, which is why it can run as a plain cron service. `Dockerfile.backup` carries 
+the `surreal` binary for the scratch database, and the restore script with the `curl` and `jq` it 
+needs. Restoring the whole production database this way peaks around 400MB of memory.
+
+Set `BACKUP_VERIFY=false` to skip it, for running the binary somewhere without those pieces. The 
+run then warns that the dumps are going out unchecked.
 
 ### How to run tests
 Tests utilize [Testcontainers](https://testcontainers.com/) to set up a new database for each test function. 
@@ -136,4 +183,3 @@ calling osu! API every time. So if you make changes to the tests, delete the fil
 [Taplo](https://taplo.tamasfe.dev/) is a toml file toolkit. You can format and check formatting of toml files. It even has an LSP!
 
 For basic usage, run `cargo install taplo-cli --locked` and run `taplo fmt` to format the toml files.
-

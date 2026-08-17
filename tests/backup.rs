@@ -144,7 +144,8 @@ async fn test_backup_uploads_a_restorable_dump() {
     let env = init_backup_env(30).await;
     seed(&env).await;
 
-    let outcome = run_backup(&env.client, &env.source, &env.store)
+    // No verification here, that path needs a surreal binary and gets its own test
+    let outcome = run_backup(&env.client, &env.source, &env.store, None)
         .await
         .expect("the backup should succeed");
 
