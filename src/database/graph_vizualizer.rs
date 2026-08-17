@@ -12,6 +12,7 @@ pub struct GraphUser {
     mentions: u32,
     username: String,
     influenced_by: u32,
+    ranked_mapper: bool,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, PartialEq, Clone, Debug)]
@@ -42,7 +43,8 @@ impl DatabaseClient {
                     count(<-influenced_by) AS mentions,
                     count(->influenced_by) AS influenced_by,
                     avatar_url,
-                    username
+                    username,
+                    ranked_mapper
                 FROM user
                 WHERE 
                     count(<-influenced_by) > 0 

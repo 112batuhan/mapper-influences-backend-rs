@@ -14,7 +14,8 @@ use super::{
     request::Requester, BeatmapsetSmall, GetID, OsuMultipleBeatmap, OsuMultipleUser, UserOsu,
 };
 
-const USER_EXPIRATION: u64 = 24600;
+/// Same as [`FULL_USER_EXPIRATION`], it's the same data behind both
+const USER_EXPIRATION: u64 = 21600;
 const BEATMAP_EXPIRATION: u64 = 86400;
 const FULL_USER_EXPIRATION: u64 = 21600;
 

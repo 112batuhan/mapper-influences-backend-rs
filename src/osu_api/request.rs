@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -72,11 +73,14 @@ where
         access_token: &str,
         query: &str,
     ) -> Result<OsuSearchUserResponse, AppError> {
-        let search_url = format!(
-            "https://osu.ppy.sh/api/v2/search/?mode=user&query={}",
-            query
-        );
-        let res_body_bytes = self.get_request(&search_url, access_token).await?;
+        // parse_with_params percent-encodes the user-supplied query so special characters
+        // can't inject extra query parameters into the upstream request
+        let search_url = reqwest::Url::parse_with_params(
+            "https://osu.ppy.sh/api/v2/search/",
+            &[("mode", "user"), ("query", query)],
+        )
+        .map_err(|error| AppError::BadUri(error.to_string()))?;
+        let res_body_bytes = self.get_request(search_url.as_str(), access_token).await?;
         Ok(serde_json::from_slice(&res_body_bytes)?)
     }
 
@@ -154,8 +158,16 @@ pub struct OsuApiRequestClient {
 }
 impl OsuApiRequestClient {
     pub fn new(concurrent_requests: usize) -> OsuApiRequestClient {
+        // A total and connect timeout are required: both request methods hold a semaphore permit
+        // across the whole request, so a stalled upstream response would otherwise pin a permit
+        // forever and eventually starve every osu!-API-backed endpoint.
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .expect("failed to build reqwest client");
         OsuApiRequestClient {
-            client: reqwest::Client::new(),
+            client,
             semaphore: Semaphore::new(concurrent_requests),
         }
     }
@@ -172,12 +184,22 @@ impl Requester for OsuApiRequestClient {
 
         let _permit = self.semaphore.acquire().await?;
         let res = self.client.get(url).headers(headers).send().await?;
+        let status = res.status();
+        if !status.is_success() {
+            // osu! error responses carry an unrelated JSON body, so returning it here would
+            // surface later as a confusing deserialization error. Fail early with the status.
+            return Err(AppError::OsuApiStatus(status.as_u16()));
+        }
         Ok(res.bytes().await?)
     }
 
     async fn post_request(&self, url: &str, body: AuthRequest) -> Result<Bytes, AppError> {
         let _permit = self.semaphore.acquire().await?;
         let res = self.client.post(url).json(&body).send().await?;
+        let status = res.status();
+        if !status.is_success() {
+            return Err(AppError::OsuApiStatus(status.as_u16()));
+        }
         Ok(res.bytes().await?)
     }
 }

@@ -148,17 +148,22 @@ pub async fn admin_login(
     State(state): State<Arc<AppState>>,
     Json(admin_login): Json<AdminLogin>,
 ) -> Result<String, AppError> {
-    if Argon2::default()
-        .verify_password(admin_login.password.as_bytes(), &ADMIN_PASSWORD)
-        .is_err()
-    {
+    let AdminLogin { password, id } = admin_login;
+    // Argon2 verification is CPU-heavy; run it off the async runtime thread
+    let password_correct = tokio::task::spawn_blocking(move || {
+        Argon2::default()
+            .verify_password(password.as_bytes(), &ADMIN_PASSWORD)
+            .is_ok()
+    })
+    .await?;
+    if !password_correct {
         return Err(AppError::WrongAdminPassword);
     }
 
     let client_credential_token = state.credentials_grant_client.get_access_token().await?;
     let osu_user = state
         .request
-        .get_user_osu(&client_credential_token, admin_login.id)
+        .get_user_osu(&client_credential_token, id)
         .await?;
 
     // Token can expire earlier than specified here. If that's the case, get a new one.
@@ -166,6 +171,6 @@ pub async fn admin_login(
         osu_user.id,
         osu_user.username.clone(),
         client_credential_token,
-        84600,
+        86400,
     )
 }

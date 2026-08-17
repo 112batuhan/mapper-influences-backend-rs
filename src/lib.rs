@@ -72,7 +72,8 @@ impl AppState {
             activity_tracker,
             credentials_grant_client,
             // These are kept warm by the routines in [`cache_update`], so the TTLs
-            // only decide how long a stale entry is served when a refresh fails
+            // only decide how long a stale entry is served when a refresh fails.
+            // The graph one lands on the hour that was set for it upstream.
             user_leaderboard_cache: LeaderboardCache::new(
                 cache.clone(),
                 "leaderboard:user:",
