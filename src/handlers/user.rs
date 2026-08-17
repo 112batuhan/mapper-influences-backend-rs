@@ -49,9 +49,13 @@ pub async fn get_user(
     let mut user = match user_result {
         // Early return without any processing if the user is not in DB
         Err(AppError::MissingUser(_)) => {
-            let user_osu =
-                cached_osu_user_request(state.request.clone(), &auth_data.osu_token, user_id.value)
-                    .await?;
+            let user_osu = cached_osu_user_request(
+                state.request.clone(),
+                state.cache.clone(),
+                &auth_data.osu_token,
+                user_id.value,
+            )
+            .await?;
             return Ok(Json(user_osu.into()));
         }
         Err(error) => return Err(error),

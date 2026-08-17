@@ -8,6 +8,7 @@ use axum::{
 };
 use axum_swagger_ui::swagger_ui;
 use mapper_influences_backend_rs::{
+    cache::RedisCache,
     daily_update::update_routine,
     database::DatabaseClient,
     osu_api::{credentials_grant::CredentialsGrantClient, request::OsuApiRequestClient},
@@ -30,11 +31,15 @@ async fn main() {
     let db = DatabaseClient::new(&url)
         .await
         .expect("failed to initialize db connection");
+    let redis_url = std::env::var("REDIS_URL").expect("Missing REDIS_URL environment variable");
+    let cache = RedisCache::new(&redis_url)
+        .await
+        .expect("failed to initialize redis connection");
     let request = Arc::new(OsuApiRequestClient::new(10));
     let credentials_grant_client = CredentialsGrantClient::new(request.clone())
         .await
         .expect("Failed to initialize credentials grant client");
-    let state = AppState::new(request, credentials_grant_client.clone(), db.clone()).await;
+    let state = AppState::new(request, credentials_grant_client.clone(), db.clone(), cache).await;
 
     let start_var = std::env::var("DAILY_UPDATE");
     if start_var.is_ok_and(|value| value.to_lowercase() == "true") {

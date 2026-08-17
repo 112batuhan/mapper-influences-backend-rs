@@ -59,6 +59,9 @@ pub enum AppError {
     #[error("Failed to decode json text: {0}")]
     SerdeJson(#[from] serde_json::Error),
 
+    #[error("Redis cache error: {0}")]
+    Redis(#[from] redis::RedisError),
+
     #[error("Unhandled Jwt error: {0}")]
     Jwt(#[from] jwt_simple::Error),
 
@@ -93,6 +96,7 @@ impl IntoResponse for AppError {
             | AppError::RwLock
             | AppError::BadUri(_)
             | AppError::SerdeJson(_)
+            | AppError::Redis(_)
             | AppError::TaskJoin(_)
             | AppError::ActivityStreamClosed
             | AppError::SurrealDbSerialization(_)

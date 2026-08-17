@@ -21,7 +21,7 @@ pub struct GraphInfluence {
     influence_type: u8,
 }
 
-#[derive(Serialize, JsonSchema, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone)]
 pub struct GraphData {
     pub nodes: Vec<GraphUser>,
     pub links: Vec<GraphInfluence>,

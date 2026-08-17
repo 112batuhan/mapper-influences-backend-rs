@@ -1,17 +1,16 @@
-use std::hash::Hash;
-use std::sync::{Arc, Mutex};
+use std::marker::PhantomData;
+use std::sync::Arc;
 
 use axum::{
     extract::{Query, State},
     Json,
 };
-use cached::Cached;
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::osu_api::{BeatmapEnum, GetID};
 use crate::{
-    custom_cache::CustomCache,
+    cache::RedisCache,
     database::leaderboard::{LeaderboardBeatmap, LeaderboardUser},
     error::AppError,
     AppState,
@@ -32,41 +31,52 @@ fn default_limit() -> u32 {
     100
 }
 
-pub struct LeaderboardCache<K: Hash + Eq + Clone, V: Clone> {
-    /// In theory, it's better to use RwLock here, but [`CustomCache::cache_get`]
-    /// takes &mut self reference, so we can't separate read and write operations
-    cache: Mutex<CustomCache<K, Vec<V>>>,
+fn user_leaderboard_key(ranked: bool, country: Option<&str>) -> String {
+    format!("{}:{}", ranked, country.unwrap_or("global"))
 }
 
-impl<K: Hash + Eq + Clone, V: Clone> LeaderboardCache<K, V> {
-    pub fn new(expire_in: u32) -> Self {
+/// Whole leaderboards are cached under a single key, the pagination is applied
+/// on the cached entry after we read it back.
+pub struct LeaderboardCache<V> {
+    cache: Arc<RedisCache>,
+    key_prefix: &'static str,
+    expire_in: u64,
+    value: PhantomData<fn() -> V>,
+}
+
+impl<V: Serialize + DeserializeOwned + Clone> LeaderboardCache<V> {
+    pub fn new(cache: Arc<RedisCache>, key_prefix: &'static str, expire_in: u64) -> Self {
         Self {
-            cache: Mutex::new(CustomCache::new(expire_in)),
+            cache,
+            key_prefix,
+            expire_in,
+            value: PhantomData,
         }
     }
-    pub fn cached_query(
+    pub async fn cached_query(
         &self,
-        key: &K,
+        key: &str,
         start: u32,
         limit: u32,
     ) -> Result<Option<Vec<V>>, AppError> {
-        let mut locked_cache = self.cache.lock().map_err(|_| AppError::Mutex)?;
-        let Some(leaderboard) = locked_cache.cache_get(key) else {
+        let full_key = format!("{}{}", self.key_prefix, key);
+        let Some(leaderboard) = self.cache.get::<Vec<V>>(&full_key).await? else {
             return Ok(None);
         };
         Ok(Some(
             leaderboard
-                .iter()
+                .into_iter()
                 .skip(start as usize)
                 .take(limit as usize)
-                .cloned()
                 .collect(),
         ))
     }
 
-    pub fn add_leaderboard(&self, key: &K, leaderboard: Vec<V>) -> Result<(), AppError> {
-        let mut locked_cache = self.cache.lock().map_err(|_| AppError::Mutex)?;
-        locked_cache.cache_set(key.clone(), leaderboard);
+    pub async fn add_leaderboard(&self, key: &str, leaderboard: &[V]) -> Result<(), AppError> {
+        let full_key = format!("{}{}", self.key_prefix, key);
+        self.cache
+            .set(&full_key, &leaderboard, self.expire_in)
+            .await?;
         Ok(())
     }
 }
@@ -76,12 +86,13 @@ pub async fn get_user_leaderboard(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<LeaderboardUser>>, AppError> {
     let leaderboard_cache_limit = 500;
+    let cache_key = user_leaderboard_key(query.ranked, query.country.as_deref());
 
-    if let Some(leaderboard) = state.user_leaderboard_cache.cached_query(
-        &(query.ranked, query.country.clone()),
-        query.start,
-        query.limit,
-    )? {
+    if let Some(leaderboard) = state
+        .user_leaderboard_cache
+        .cached_query(&cache_key, query.start, query.limit)
+        .await?
+    {
         return Ok(Json(leaderboard));
     }
     let mut leaderboard = state
@@ -104,7 +115,8 @@ pub async fn get_user_leaderboard(
 
     state
         .user_leaderboard_cache
-        .add_leaderboard(&(query.ranked, query.country), leaderboard)?;
+        .add_leaderboard(&cache_key, &leaderboard)
+        .await?;
     Ok(Json(limited_leaderboard))
 }
 
@@ -113,11 +125,12 @@ pub async fn get_beatmap_leaderboard(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<LeaderboardBeatmap>>, AppError> {
     let leaderboard_cache_limit = 200;
+    let cache_key = query.ranked.to_string();
 
-    if let Some(leaderboard) =
-        state
-            .beatmap_leaderboard_cache
-            .cached_query(&query.ranked, query.start, query.limit)?
+    if let Some(leaderboard) = state
+        .beatmap_leaderboard_cache
+        .cached_query(&cache_key, query.start, query.limit)
+        .await?
     {
         return Ok(Json(leaderboard));
     }
@@ -160,6 +173,7 @@ pub async fn get_beatmap_leaderboard(
 
     state
         .beatmap_leaderboard_cache
-        .add_leaderboard(&query.ranked, leaderboard)?;
+        .add_leaderboard(&cache_key, &leaderboard)
+        .await?;
     Ok(Json(limited_leaderboard))
 }

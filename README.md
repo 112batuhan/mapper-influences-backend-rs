@@ -28,7 +28,12 @@ or in our [discord](https://discord.gg/SAwxBDe3Rf)
 - Fill it with your credentials.
 - Use `docker compose up` to run the project..
 
-You might only want to run database in docker, to do that just use `docker compose up surrealdb -d`
+You might only want to run the database and the cache in docker, to do that just use 
+`docker compose up surrealdb redis -d`
+
+#### Cache
+Responses from the osu! API, leaderboards and the graph data are cached in redis. 
+Point `REDIS_URL` to your instance, every entry gets a TTL so no manual invalidation is needed.
 
 #### To run locally
 `cargo run --release`

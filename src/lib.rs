@@ -4,6 +4,7 @@ use aide::axum::routing::{delete_with, get_with, patch_with, post_with};
 use aide::axum::ApiRouter;
 use axum::middleware;
 use axum::routing::any;
+use cache::RedisCache;
 use database::leaderboard::{LeaderboardBeatmap, LeaderboardUser};
 use database::DatabaseClient;
 use handlers::activity::ActivityTracker;
@@ -14,7 +15,7 @@ use osu_api::cached_requester::CombinedRequester;
 use osu_api::credentials_grant::CredentialsGrantClient;
 use osu_api::request::Requester;
 
-pub mod custom_cache;
+pub mod cache;
 pub mod daily_update;
 pub mod database;
 pub mod documentation;
@@ -28,11 +29,12 @@ pub struct AppState {
     pub db: Arc<DatabaseClient>,
     pub request: Arc<dyn Requester>,
     pub jwt: JwtUtil,
+    pub cache: Arc<RedisCache>,
     pub cached_combined_requester: Arc<CombinedRequester>,
     pub activity_tracker: Arc<ActivityTracker>,
     pub credentials_grant_client: Arc<CredentialsGrantClient>,
-    pub user_leaderboard_cache: LeaderboardCache<(bool, Option<String>), LeaderboardUser>,
-    pub beatmap_leaderboard_cache: LeaderboardCache<bool, LeaderboardBeatmap>,
+    pub user_leaderboard_cache: LeaderboardCache<LeaderboardUser>,
+    pub beatmap_leaderboard_cache: LeaderboardCache<LeaderboardBeatmap>,
     pub graph_cache: GraphCache,
 }
 
@@ -41,9 +43,10 @@ impl AppState {
         request: Arc<dyn Requester>,
         credentials_grant_client: Arc<CredentialsGrantClient>,
         db: Arc<DatabaseClient>,
+        cache: Arc<RedisCache>,
     ) -> Arc<AppState> {
         let cached_combined_requester =
-            CombinedRequester::new(request.clone(), "https://osu.ppy.sh");
+            CombinedRequester::new(request.clone(), cache.clone(), "https://osu.ppy.sh");
 
         let activity_tracker = ActivityTracker::new(
             db.clone(),
@@ -62,9 +65,14 @@ impl AppState {
             cached_combined_requester,
             activity_tracker,
             credentials_grant_client,
-            user_leaderboard_cache: LeaderboardCache::new(300),
-            beatmap_leaderboard_cache: LeaderboardCache::new(300),
-            graph_cache: GraphCache::new(600),
+            user_leaderboard_cache: LeaderboardCache::new(cache.clone(), "leaderboard:user:", 300),
+            beatmap_leaderboard_cache: LeaderboardCache::new(
+                cache.clone(),
+                "leaderboard:beatmap:",
+                300,
+            ),
+            graph_cache: GraphCache::new(cache.clone(), 600),
+            cache,
         })
     }
 }
