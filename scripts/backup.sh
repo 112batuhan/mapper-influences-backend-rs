@@ -35,9 +35,26 @@ fi
 : "${SURREAL_USER:?set SURREAL_USER}"
 : "${SURREAL_PASS:?set SURREAL_PASS}"
 : "${R2_ENDPOINT:?set R2_ENDPOINT}"
-: "${R2_BUCKET:?set R2_BUCKET}"
 : "${R2_ACCESS_KEY_ID:?set R2_ACCESS_KEY_ID}"
 : "${R2_SECRET_ACCESS_KEY:?set R2_SECRET_ACCESS_KEY}"
+
+# Cloudflare shows the S3 API endpoint with the bucket already on the end, and
+# that is what people paste. mc wants the host on its own, so split whichever
+# form we were given: the host becomes the endpoint, and any path is the bucket
+# unless R2_BUCKET says otherwise.
+ENDPOINT_HOST=$(printf '%s' "$R2_ENDPOINT" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/]+).*#\1#')
+ENDPOINT_PATH=$(printf '%s' "$R2_ENDPOINT" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+##; s#^/##; s#/$##')
+
+if [ -n "$ENDPOINT_PATH" ] && [ -n "${R2_BUCKET:-}" ] && [ "$ENDPOINT_PATH" != "$R2_BUCKET" ]; then
+    echo "[backup] R2_ENDPOINT ends in /$ENDPOINT_PATH but R2_BUCKET is $R2_BUCKET, using $R2_BUCKET" >&2
+fi
+R2_BUCKET=${R2_BUCKET:-$ENDPOINT_PATH}
+R2_ENDPOINT=$ENDPOINT_HOST
+
+if [ -z "$R2_BUCKET" ]; then
+    echo "set R2_BUCKET, or put the bucket on the end of R2_ENDPOINT" >&2
+    exit 2
+fi
 
 NAMESPACE=${SURREAL_NAMESPACE:-prod}
 DATABASE=${SURREAL_DATABASE:-prod}

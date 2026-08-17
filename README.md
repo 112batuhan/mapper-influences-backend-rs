@@ -70,16 +70,16 @@ A failed run exits non-zero.
 | `SURREAL_URL` | the database to back up, `SURREAL_HTTP_URL` overrides it |
 | `SURREAL_USER`, `SURREAL_PASS` | root credentials |
 | `SURREAL_NAMESPACE`, `SURREAL_DATABASE` | default `prod` / `prod` |
-| `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com`, no bucket on the end |
-| `R2_BUCKET` | |
+| `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com`, with or without the bucket on the end |
+| `R2_BUCKET` | optional if `R2_ENDPOINT` already ends with it |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | |
 | `BACKUP_PREFIX` | folder inside the bucket, default `surrealdb` |
 | `BACKUP_RETENTION` | how many dumps to keep, default 30 |
 | `BACKUP_VERIFY` | `false` skips the restore check |
 
-The R2 values come from the Cloudflare dashboard under R2 Object Storage: create a bucket, take its
-**S3 API** endpoint, then **Manage R2 API tokens** → create one with **Object Read & Write** scoped
-to that bucket.
+The R2 values come from the Cloudflare dashboard under R2 Object Storage: create a bucket, copy its
+**S3 API** endpoint as shown (it has the bucket name on the end, which the script splits off), then
+**Manage R2 API tokens** → create one with **Object Read & Write** scoped to that bucket.
 
 #### Running it
 `Dockerfile.backup` is the cron image: debian with `curl`, `jq`, `gzip`, the `surreal` binary for
