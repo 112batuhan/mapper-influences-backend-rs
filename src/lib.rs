@@ -197,6 +197,10 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
         )
         .route("/ws", any(handlers::activity::ws_handler))
         .api_route(
+            "/og/user/:user_id",
+            get_with(handlers::og::get_user_og, |op| op.tag("Open Graph")),
+        )
+        .api_route(
             "/oauth/osu-redirect",
             get_with(handlers::auth::osu_oauth2_redirect, |op| {
                 op.tag("Auth").response::<302, ()>()
