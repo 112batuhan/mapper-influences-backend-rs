@@ -22,6 +22,7 @@
 #   VERIFY_NAMESPACE, VERIFY_DATABASE   names the check restores under, both
 #                                       default to restore_check
 #   DISCORD_WEBHOOK_URL                 optional, posts the outcome of every run
+#   LOGS_URL, R2_CONSOLE_URL            optional, override the links in that post
 set -euo pipefail
 
 for tool in curl jq gzip mc; do
@@ -78,6 +79,31 @@ DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
 # sets it before doing anything that can fail.
 STEP="starting up"
 
+# Somewhere to click from the notification. Railway hands the ids to every
+# container it runs, and the R2 account id is the first label of the endpoint
+# host. Either can be overridden, dashboards move around.
+if [ -z "${LOGS_URL:-}" ] && [ -n "${RAILWAY_PROJECT_ID:-}" ] && [ -n "${RAILWAY_SERVICE_ID:-}" ]; then
+    LOGS_URL="https://railway.com/project/$RAILWAY_PROJECT_ID/service/$RAILWAY_SERVICE_ID"
+    [ -n "${RAILWAY_ENVIRONMENT_ID:-}" ] && LOGS_URL="$LOGS_URL?environmentId=$RAILWAY_ENVIRONMENT_ID"
+fi
+
+if [ -z "${R2_CONSOLE_URL:-}" ]; then
+    R2_ACCOUNT=$(printf '%s' "$R2_ENDPOINT" | sed -nE 's#^https?://([0-9a-f]+)\.r2\.cloudflarestorage\.com/?$#\1#p')
+    [ -n "$R2_ACCOUNT" ] && R2_CONSOLE_URL="https://dash.cloudflare.com/$R2_ACCOUNT/r2/default/buckets/$R2_BUCKET"
+fi
+
+# Discord renders these as markdown links. A run that can't work out either one
+# just doesn't carry it, rather than posting something that goes nowhere.
+links() {
+    LINKS=""
+    [ -n "${R2_CONSOLE_URL:-}" ] && LINKS="[bucket]($R2_CONSOLE_URL)"
+    if [ -n "${LOGS_URL:-}" ]; then
+        [ -n "$LINKS" ] && LINKS="$LINKS · "
+        LINKS="$LINKS[logs]($LOGS_URL)"
+    fi
+    [ -n "$LINKS" ] && printf '\n\n%s' "$LINKS"
+}
+
 # Discord is told how the run went, if a webhook was configured. A webhook that
 # doesn't answer is not allowed to fail a backup that worked, and the url is a
 # secret in its own right so it never gets echoed.
@@ -105,10 +131,10 @@ finish() {
     rm -rf "$WORK_DIR"
 
     if [ "$EXIT_CODE" = "0" ]; then
-        notify "Backup ok" "$SUMMARY" 3066993
+        notify "Backup ok" "$SUMMARY$(links)" 3066993
     else
         notify "Backup failed" \
-            "Fell over while $STEP, exit code $EXIT_CODE. The run log has the details." \
+            "Fell over while $STEP, exit code $EXIT_CODE.$(links)" \
             15158332
     fi
 }

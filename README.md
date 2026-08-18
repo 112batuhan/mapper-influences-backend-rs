@@ -68,7 +68,10 @@ happens last, so an upload or a restore that failed never costs an older backup 
 A failed run exits non-zero. Set `DISCORD_WEBHOOK_URL` (channel settings → Integrations →
 Webhooks) and every run posts its outcome: the key, the sizes and what the restore check found, or
 which step it fell over on. A webhook that doesn't answer is logged and otherwise ignored, since a
-backup that worked shouldn't be reported as failed because Discord was down.
+backup that worked shouldn't be reported as failed because Discord was down. The post links to the
+Railway logs and the R2 bucket, built from the ids Railway gives every container and from the
+account id in `R2_ENDPOINT`. Neither link appears if it can't be worked out, and `LOGS_URL` /
+`R2_CONSOLE_URL` override them if a dashboard moves.
 
 | Variable | |
 |---|---|
@@ -83,6 +86,7 @@ backup that worked shouldn't be reported as failed because Discord was down.
 | `BACKUP_VERIFY` | `false` skips the restore check |
 | `VERIFY_NAMESPACE`, `VERIFY_DATABASE` | what the check restores under, both default `restore_check` |
 | `DISCORD_WEBHOOK_URL` | optional, posts the outcome of every run to a channel |
+| `LOGS_URL`, `R2_CONSOLE_URL` | optional, override the links in that post |
 
 The R2 values come from the Cloudflare dashboard under R2 Object Storage: create a bucket, copy its
 **S3 API** endpoint as shown (it has the bucket name on the end, which the script splits off), then
