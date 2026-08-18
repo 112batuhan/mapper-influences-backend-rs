@@ -23,6 +23,8 @@
 #                                       default to restore_check
 #   DISCORD_WEBHOOK_URL                 optional, posts the outcome of every run
 #   LOGS_URL, R2_CONSOLE_URL            optional, override the links in that post
+#   DISCORD_FAILURE_MENTION             optional, a role id (or @here / @everyone)
+#                                       to ping when a run fails
 set -euo pipefail
 
 for tool in curl jq gzip mc; do
@@ -74,6 +76,7 @@ VERIFY_NAMESPACE=${VERIFY_NAMESPACE:-restore_check}
 VERIFY_DATABASE=${VERIFY_DATABASE:-restore_check}
 MINIMUM_DUMP_BYTES=512
 DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+DISCORD_FAILURE_MENTION=${DISCORD_FAILURE_MENTION:-}
 
 # What the run is busy with, so a failure can say where it fell over. Every step
 # sets it before doing anything that can fail.
@@ -107,10 +110,37 @@ links() {
 # Discord is told how the run went, if a webhook was configured. A webhook that
 # doesn't answer is not allowed to fail a backup that worked, and the url is a
 # secret in its own right so it never gets echoed.
+#
+# The fourth argument is a mention to ping, and it has to ride in `content`:
+# a mention written inside an embed renders as a link but notifies nobody, which
+# is a quiet way to build an alert that never reaches anyone. `allowed_mentions`
+# is always sent, so this can only ever ping the one thing it was asked to.
 notify() {
     [ -z "$DISCORD_WEBHOOK_URL" ] && return 0
-    PAYLOAD=$(jq -n --arg title "$1" --arg body "$2" --argjson color "$3" \
-        '{embeds:[{title:$title,description:$body,color:$color}]}')
+
+    CONTENT=""
+    ALLOWED='{"parse":[]}'
+    case "${4:-}" in
+        "") ;;
+        @here | @everyone)
+            CONTENT="$4"
+            ALLOWED='{"parse":["everyone"]}'
+            ;;
+        *[!0-9]*)
+            # Already a full mention, or something we don't recognise. Passed
+            # through as written, with nothing whitelisted to ping.
+            CONTENT="$4"
+            ;;
+        *)
+            CONTENT="<@&$4>"
+            ALLOWED=$(jq -nc --arg role "$4" '{parse:[],roles:[$role]}')
+            ;;
+    esac
+
+    PAYLOAD=$(jq -n --arg content "$CONTENT" --arg title "$1" --arg body "$2" \
+        --argjson color "$3" --argjson allowed "$ALLOWED" \
+        '{content:$content,allowed_mentions:$allowed,
+          embeds:[{title:$title,description:$body,color:$color}]}')
     curl -sS -m 15 -X POST -H "Content-Type: application/json" \
         -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL" >/dev/null 2>&1 \
         || echo "[backup] could not reach the discord webhook" >&2
@@ -135,7 +165,7 @@ finish() {
     else
         notify "Backup failed" \
             "Fell over while $STEP, exit code $EXIT_CODE.$(links)" \
-            15158332
+            15158332 "$DISCORD_FAILURE_MENTION"
     fi
 }
 trap finish EXIT

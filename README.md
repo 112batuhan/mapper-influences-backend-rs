@@ -73,6 +73,12 @@ Railway logs and the R2 bucket, built from the ids Railway gives every container
 account id in `R2_ENDPOINT`. Neither link appears if it can't be worked out, and `LOGS_URL` /
 `R2_CONSOLE_URL` override them if a dashboard moves.
 
+Set `DISCORD_FAILURE_MENTION` to a role id and failures ping that role, while successful runs stay
+quiet. Copy the id with Developer Mode on in Discord (Settings → Advanced), then right click the
+role → Copy Role ID. The mention is sent as the message content rather than inside the embed,
+because a mention written into an embed renders as a link and notifies nobody, and it goes out with
+an `allowed_mentions` whitelist so it can only ever ping that one role.
+
 | Variable | |
 |---|---|
 | `SURREAL_URL` | the database to back up, `SURREAL_HTTP_URL` overrides it |
@@ -87,6 +93,7 @@ account id in `R2_ENDPOINT`. Neither link appears if it can't be worked out, and
 | `VERIFY_NAMESPACE`, `VERIFY_DATABASE` | what the check restores under, both default `restore_check` |
 | `DISCORD_WEBHOOK_URL` | optional, posts the outcome of every run to a channel |
 | `LOGS_URL`, `R2_CONSOLE_URL` | optional, override the links in that post |
+| `DISCORD_FAILURE_MENTION` | optional, role id (or `@here`) pinged when a run fails |
 
 The R2 values come from the Cloudflare dashboard under R2 Object Storage: create a bucket, copy its
 **S3 API** endpoint as shown (it has the bucket name on the end, which the script splits off), then
