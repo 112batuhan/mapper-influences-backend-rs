@@ -160,10 +160,12 @@ finish() {
     [ -n "${SCRATCH_PID:-}" ] && kill "$SCRATCH_PID" 2>/dev/null || true
     rm -rf "$WORK_DIR"
 
+    # The prefix is in the title, so two schedules writing to the same channel
+    # are told apart at a glance rather than by reading the key
     if [ "$EXIT_CODE" = "0" ]; then
-        notify "Backup ok" "$SUMMARY$(links)" 3066993
+        notify "Backup ok ($PREFIX)" "$SUMMARY$(links)" 3066993
     else
-        notify "Backup failed" \
+        notify "Backup failed ($PREFIX)" \
             "Fell over while $STEP, exit code $EXIT_CODE.$(links)" \
             15158332 "$DISCORD_FAILURE_MENTION"
     fi
@@ -269,7 +271,12 @@ fi
 # Last on purpose: an upload or a restore that failed must never cost us an older
 # backup that is still good. The keys are timestamped, so they sort oldest first.
 STEP="pruning old backups"
-KEYS=$($MC ls "$TARGET/" | awk '{print $NF}' | sort)
+# Only keys this script writes are candidates. Retention counts per prefix, so two
+# schedules sharing a bucket (hourly keeping 24, daily keeping 30) each prune their
+# own folder and leave the other alone, and anything else stored in the bucket is
+# never up for deletion.
+KEYS=$($MC ls "$TARGET/" | awk '{print $NF}' \
+    | grep -E '^.+-[0-9]{8}T[0-9]{6}Z\.surql\.gz$' | sort || true)
 TOTAL=$(printf '%s\n' "$KEYS" | grep -c . || true)
 if [ "$TOTAL" -gt "$RETENTION" ]; then
     printf '%s\n' "$KEYS" | head -n "$((TOTAL - RETENTION))" | while read -r old; do

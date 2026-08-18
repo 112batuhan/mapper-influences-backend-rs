@@ -87,8 +87,8 @@ an `allowed_mentions` whitelist so it can only ever ping that one role.
 | `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com`, with or without the bucket on the end |
 | `R2_BUCKET` | optional if `R2_ENDPOINT` already ends with it |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | |
-| `BACKUP_PREFIX` | folder inside the bucket, default `surrealdb` |
-| `BACKUP_RETENTION` | how many dumps to keep, default 30 |
+| `BACKUP_PREFIX` | folder inside the bucket, default `surrealdb`. Retention counts per prefix |
+| `BACKUP_RETENTION` | how many dumps to keep in that prefix, default 30 |
 | `BACKUP_VERIFY` | `false` skips the restore check |
 | `VERIFY_NAMESPACE`, `VERIFY_DATABASE` | what the check restores under, both default `restore_check` |
 | `DISCORD_WEBHOOK_URL` | optional, posts the outcome of every run to a channel |
@@ -109,6 +109,9 @@ docker build -f Dockerfile.backup -t mapper-influences-backup .
 docker run --rm --env-file .env mapper-influences-backup
 ```
 
+Several schedules can share this image and the same bucket, as long as each gets its own
+`BACKUP_PREFIX`. Retention is counted inside a prefix, and pruning only removes keys this script
+wrote.
 
 #### Restoring
 `scripts/restore.sh <dump-file>` puts a dump back, gzipped or not, reading the same `SURREAL_*`
