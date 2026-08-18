@@ -21,6 +21,7 @@
 #   BACKUP_VERIFY=false                 skip the restore check
 #   VERIFY_NAMESPACE, VERIFY_DATABASE   names the check restores under, both
 #                                       default to restore_check
+#   DISCORD_WEBHOOK_URL                 optional, posts the outcome of every run
 set -euo pipefail
 
 for tool in curl jq gzip mc; do
@@ -71,6 +72,23 @@ VERIFY_PORT=${VERIFY_PORT:-18100}
 VERIFY_NAMESPACE=${VERIFY_NAMESPACE:-restore_check}
 VERIFY_DATABASE=${VERIFY_DATABASE:-restore_check}
 MINIMUM_DUMP_BYTES=512
+DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+
+# What the run is busy with, so a failure can say where it fell over. Every step
+# sets it before doing anything that can fail.
+STEP="starting up"
+
+# Discord is told how the run went, if a webhook was configured. A webhook that
+# doesn't answer is not allowed to fail a backup that worked, and the url is a
+# secret in its own right so it never gets echoed.
+notify() {
+    [ -z "$DISCORD_WEBHOOK_URL" ] && return 0
+    PAYLOAD=$(jq -n --arg title "$1" --arg body "$2" --argjson color "$3" \
+        '{embeds:[{title:$title,description:$body,color:$color}]}')
+    curl -sS -m 15 -X POST -H "Content-Type: application/json" \
+        -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL" >/dev/null 2>&1 \
+        || echo "[backup] could not reach the discord webhook" >&2
+}
 
 # The app is configured with a websocket url, the export endpoint is http on the
 # same host
@@ -80,11 +98,21 @@ if [ -z "${SURREAL_HTTP_URL:-}" ]; then
 fi
 
 WORK_DIR=$(mktemp -d)
-cleanup() {
+SUMMARY=""
+finish() {
+    EXIT_CODE=$?
     [ -n "${SCRATCH_PID:-}" ] && kill "$SCRATCH_PID" 2>/dev/null || true
     rm -rf "$WORK_DIR"
+
+    if [ "$EXIT_CODE" = "0" ]; then
+        notify "Backup ok" "$SUMMARY" 3066993
+    else
+        notify "Backup failed" \
+            "Fell over while $STEP, exit code $EXIT_CODE. The run log has the details." \
+            15158332
+    fi
 }
-trap cleanup EXIT
+trap finish EXIT
 
 # mc keeps its config in $HOME by default, which isn't always writable
 MC="mc --config-dir $WORK_DIR/.mc --quiet"
@@ -92,6 +120,7 @@ $MC alias set store "$R2_ENDPOINT" "$R2_ACCESS_KEY_ID" "$R2_SECRET_ACCESS_KEY" -
 TARGET="store/$R2_BUCKET/$PREFIX"
 
 # ---------------------------------------------------------------- export
+STEP="exporting $NAMESPACE/$DATABASE"
 echo "[backup] exporting $NAMESPACE/$DATABASE from $SURREAL_HTTP_URL"
 STATUS=$(curl -sS --max-time 1800 -X GET "$SURREAL_HTTP_URL/export" \
     -u "$SURREAL_USER:$SURREAL_PASS" \
@@ -121,6 +150,7 @@ case "$(tail -c 200 "$WORK_DIR/dump.surql" | tr -d '[:space:]' | tail -c 1)" in
 esac
 
 # ---------------------------------------------------------------- upload
+STEP="uploading the dump"
 KEY="$NAMESPACE-$DATABASE-$(date -u +%Y%m%dT%H%M%SZ).surql.gz"
 gzip -c "$WORK_DIR/dump.surql" > "$WORK_DIR/$KEY"
 UPLOADED_BYTES=$(wc -c < "$WORK_DIR/$KEY")
@@ -131,9 +161,11 @@ $MC cp "$WORK_DIR/$KEY" "$TARGET/$KEY"
 if [ "${BACKUP_VERIFY:-true}" = "false" ]; then
     echo "[backup] restore check skipped, this dump goes out unverified"
 else
+    STEP="downloading $PREFIX/$KEY back"
     echo "[backup] downloading $PREFIX/$KEY back to restore it"
     $MC cp "$TARGET/$KEY" "$WORK_DIR/verify-$KEY"
 
+    STEP="restoring $PREFIX/$KEY to check it"
     echo "[backup] starting a scratch surrealdb in memory on $VERIFY_PORT," \
         "restoring into $VERIFY_NAMESPACE/$VERIFY_DATABASE"
     "$SURREAL_BINARY" start --user verify --pass verify \
@@ -170,6 +202,7 @@ else
             exit 1
         fi
         echo "[backup] restored $table: $COUNT"
+        RESTORED="${RESTORED:-}$table $COUNT, "
     done
 
     kill "$SCRATCH_PID" 2>/dev/null || true
@@ -179,6 +212,7 @@ fi
 # ---------------------------------------------------------------- prune
 # Last on purpose: an upload or a restore that failed must never cost us an older
 # backup that is still good. The keys are timestamped, so they sort oldest first.
+STEP="pruning old backups"
 KEYS=$($MC ls "$TARGET/" | awk '{print $NF}' | sort)
 TOTAL=$(printf '%s\n' "$KEYS" | grep -c . || true)
 if [ "$TOTAL" -gt "$RETENTION" ]; then
@@ -187,6 +221,13 @@ if [ "$TOTAL" -gt "$RETENTION" ]; then
         echo "[backup] removing the expired backup $old"
         $MC rm "$TARGET/$old" >/dev/null || echo "[backup] could not remove $old" >&2
     done
+    PRUNED=$((TOTAL - RETENTION))
 fi
+
+RESTORED_SUMMARY=${RESTORED:-not checked}
+SUMMARY="\`$PREFIX/$KEY\`
+$DUMP_BYTES bytes, $UPLOADED_BYTES compressed
+restored ${RESTORED_SUMMARY%, }
+${PRUNED:-0} old backup(s) removed"
 
 echo "[backup] done: $PREFIX/$KEY"

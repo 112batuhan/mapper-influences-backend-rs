@@ -65,7 +65,10 @@ It restores every dump before that dump counts as taken: downloading it back out
 is the script that gets tested). That scratch database is a separate process bound to localhost and
 never shares a name with the live one, so the check cannot reach real data. Pruning
 happens last, so an upload or a restore that failed never costs an older backup that still works.
-A failed run exits non-zero.
+A failed run exits non-zero. Set `DISCORD_WEBHOOK_URL` (channel settings → Integrations →
+Webhooks) and every run posts its outcome: the key, the sizes and what the restore check found, or
+which step it fell over on. A webhook that doesn't answer is logged and otherwise ignored, since a
+backup that worked shouldn't be reported as failed because Discord was down.
 
 | Variable | |
 |---|---|
@@ -79,6 +82,7 @@ A failed run exits non-zero.
 | `BACKUP_RETENTION` | how many dumps to keep, default 30 |
 | `BACKUP_VERIFY` | `false` skips the restore check |
 | `VERIFY_NAMESPACE`, `VERIFY_DATABASE` | what the check restores under, both default `restore_check` |
+| `DISCORD_WEBHOOK_URL` | optional, posts the outcome of every run to a channel |
 
 The R2 values come from the Cloudflare dashboard under R2 Object Storage: create a bucket, copy its
 **S3 API** endpoint as shown (it has the bucket name on the end, which the script splits off), then
