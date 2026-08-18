@@ -19,6 +19,8 @@
 #   BACKUP_PREFIX                       folder inside the bucket, default surrealdb
 #   BACKUP_RETENTION                    how many dumps to keep, default 30
 #   BACKUP_VERIFY=false                 skip the restore check
+#   VERIFY_NAMESPACE, VERIFY_DATABASE   names the check restores under, both
+#                                       default to restore_check
 set -euo pipefail
 
 for tool in curl jq gzip mc; do
@@ -63,6 +65,11 @@ RETENTION=${BACKUP_RETENTION:-30}
 RESTORE_SCRIPT=${RESTORE_SCRIPT:-/usr/local/bin/restore.sh}
 SURREAL_BINARY=${SURREAL_BINARY:-surreal}
 VERIFY_PORT=${VERIFY_PORT:-18100}
+# The restore check runs against its own throwaway database, under its own names.
+# It is already a separate surrealdb process, in memory, bound to localhost, but
+# nothing here should even read as if it could be pointed at the live data.
+VERIFY_NAMESPACE=${VERIFY_NAMESPACE:-restore_check}
+VERIFY_DATABASE=${VERIFY_DATABASE:-restore_check}
 MINIMUM_DUMP_BYTES=512
 
 # The app is configured with a websocket url, the export endpoint is http on the
@@ -127,7 +134,8 @@ else
     echo "[backup] downloading $PREFIX/$KEY back to restore it"
     $MC cp "$TARGET/$KEY" "$WORK_DIR/verify-$KEY"
 
-    echo "[backup] starting a scratch surrealdb in memory on $VERIFY_PORT"
+    echo "[backup] starting a scratch surrealdb in memory on $VERIFY_PORT," \
+        "restoring into $VERIFY_NAMESPACE/$VERIFY_DATABASE"
     "$SURREAL_BINARY" start --user verify --pass verify \
         --bind "127.0.0.1:$VERIFY_PORT" memory >"$WORK_DIR/scratch.log" 2>&1 &
     SCRATCH_PID=$!
@@ -144,12 +152,13 @@ else
     SURREAL_HTTP_URL="http://127.0.0.1:$VERIFY_PORT" \
     SURREAL_URL="ws://127.0.0.1:$VERIFY_PORT" \
     SURREAL_USER=verify SURREAL_PASS=verify \
-    SURREAL_NAMESPACE="$NAMESPACE" SURREAL_DATABASE="$DATABASE" \
+    SURREAL_NAMESPACE="$VERIFY_NAMESPACE" SURREAL_DATABASE="$VERIFY_DATABASE" \
         "$RESTORE_SCRIPT" "$WORK_DIR/verify-$KEY"
 
     scratch_count() {
         curl -sS -X POST "http://127.0.0.1:$VERIFY_PORT/sql" -u "verify:verify" \
-            -H "surreal-ns: $NAMESPACE" -H "surreal-db: $DATABASE" -H "Accept: application/json" \
+            -H "surreal-ns: $VERIFY_NAMESPACE" -H "surreal-db: $VERIFY_DATABASE" \
+            -H "Accept: application/json" \
             --data "SELECT count() FROM $1 GROUP ALL;" | jq -r '.[0].result[0].count // 0'
     }
 

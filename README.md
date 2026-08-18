@@ -60,8 +60,10 @@ the database wrote it in and stops being restorable once a newer version upgrade
 disk, which is how a database gets lost. A dump imports into any SurrealDB.
 
 It restores every dump before that dump counts as taken: downloading it back out of the bucket
-(so the upload is tested too), into a SurrealDB started in memory in the same container, with
-`scripts/restore.sh` (so the script the runbook uses is the script that gets tested). Pruning
+(so the upload is tested too), into a SurrealDB started in memory in the same container, under the
+`restore_check` namespace and database, with `scripts/restore.sh` (so the script the runbook uses
+is the script that gets tested). That scratch database is a separate process bound to localhost and
+never shares a name with the live one, so the check cannot reach real data. Pruning
 happens last, so an upload or a restore that failed never costs an older backup that still works.
 A failed run exits non-zero.
 
@@ -76,6 +78,7 @@ A failed run exits non-zero.
 | `BACKUP_PREFIX` | folder inside the bucket, default `surrealdb` |
 | `BACKUP_RETENTION` | how many dumps to keep, default 30 |
 | `BACKUP_VERIFY` | `false` skips the restore check |
+| `VERIFY_NAMESPACE`, `VERIFY_DATABASE` | what the check restores under, both default `restore_check` |
 
 The R2 values come from the Cloudflare dashboard under R2 Object Storage: create a bucket, copy its
 **S3 API** endpoint as shown (it has the bucket name on the end, which the script splits off), then
