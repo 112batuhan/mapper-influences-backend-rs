@@ -1,35 +1,57 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
-use cached::proc_macro::cached;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::Value;
 
-use crate::{custom_cache::CustomCache, error::AppError};
+use crate::{
+    cache::{MultipleCacheResults, RedisCache},
+    error::AppError,
+};
 
 use super::{
     request::Requester, BeatmapsetSmall, GetID, OsuMultipleBeatmap, OsuMultipleUser, UserOsu,
 };
 
-pub struct CachedRequester<T: DeserializeOwned + GetID + Clone + Send + 'static> {
+/// The same user is cached at two fidelities under two key spaces, and they have
+/// to stay apart. The compact one is what the batch endpoint returns, the full one
+/// only comes from the single user endpoint and carries the counts and the groups
+/// the batch one has no way of filling in. Sharing a key would mean the two
+/// overwrite each other on every id, and only one of the two directions would
+/// even fail loudly. Same lifetime for both, it's the same user underneath.
+const USER_COMPACT_EXPIRATION: u64 = 21600;
+const USER_FULL_EXPIRATION: u64 = 21600;
+const BEATMAP_EXPIRATION: u64 = 86400;
+
+const USER_COMPACT_KEY_PREFIX: &str = "osu:user_compact:";
+const USER_FULL_KEY_PREFIX: &str = "osu:user_full:";
+const BEATMAP_KEY_PREFIX: &str = "osu:beatmap:";
+
+pub struct CachedRequester<T: DeserializeOwned + Serialize + GetID + Clone + Send + 'static> {
     pub client: Arc<dyn Requester>,
-    pub cache: Mutex<CustomCache<u32, T>>,
+    pub cache: Arc<RedisCache>,
     pub base_url: String,
+    pub key_prefix: &'static str,
+    pub expire_in: u64,
+    value: PhantomData<fn() -> T>,
 }
 
-impl<T: DeserializeOwned + GetID + Clone + Send + 'static> CachedRequester<T> {
+impl<T: DeserializeOwned + Serialize + GetID + Clone + Send + 'static> CachedRequester<T> {
     pub fn new(
         client: Arc<dyn Requester>,
+        cache: Arc<RedisCache>,
         base_url: &str,
-        cache_expiration: u32,
+        key_prefix: &'static str,
+        expire_in: u64,
     ) -> CachedRequester<T> {
         CachedRequester {
             client,
-            cache: Mutex::new(CustomCache::new(cache_expiration)),
+            cache,
             base_url: base_url.to_string(),
+            key_prefix,
+            expire_in,
+            value: PhantomData,
         }
     }
 
@@ -39,10 +61,13 @@ impl<T: DeserializeOwned + GetID + Clone + Send + 'static> CachedRequester<T> {
         access_token: &str,
     ) -> Result<HashMap<u32, T>, AppError> {
         // try to get the results from cache
-        let mut cache_result = {
-            let mut cache = self.cache.lock().map_err(|_| AppError::Mutex)?;
-            cache.get_multiple(ids)
-        };
+        let mut cache_result: MultipleCacheResults<u32, T> =
+            self.cache.get_multiple(self.key_prefix, ids).await;
+
+        if cache_result.misses.is_empty() {
+            return Ok(cache_result.hits);
+        }
+
         // Request the missing items
         let misses_requested = self
             .client
@@ -59,13 +84,12 @@ impl<T: DeserializeOwned + GetID + Clone + Send + 'static> CachedRequester<T> {
             .collect();
 
         // Update the cache with the new data
-        {
-            let mut cache = self.cache.lock().map_err(|_| AppError::Mutex)?;
-            cache.set_multiple(add_to_cache.clone());
-        }
+        self.cache
+            .set_multiple(self.key_prefix, &add_to_cache, self.expire_in)
+            .await;
 
         // Combine hits with newly fetched data
-        cache_result.hits.extend(add_to_cache.into_iter());
+        cache_result.hits.extend(add_to_cache);
 
         Ok(cache_result.hits)
     }
@@ -76,16 +100,20 @@ pub struct CombinedRequester {
     beatmap_requester: Arc<CachedRequester<OsuMultipleBeatmap>>,
 }
 impl CombinedRequester {
-    pub fn new(client: Arc<dyn Requester>, base_url: &str) -> Arc<Self> {
+    pub fn new(client: Arc<dyn Requester>, cache: Arc<RedisCache>, base_url: &str) -> Arc<Self> {
         let user_requester = Arc::new(CachedRequester::new(
             client.clone(),
+            cache.clone(),
             &format!("{}/api/v2/users", base_url),
-            24600,
+            USER_COMPACT_KEY_PREFIX,
+            USER_COMPACT_EXPIRATION,
         ));
         let beatmap_requester = Arc::new(CachedRequester::new(
             client.clone(),
+            cache,
             &format!("{}/api/v2/beatmaps", base_url),
-            86400,
+            BEATMAP_KEY_PREFIX,
+            BEATMAP_EXPIRATION,
         ));
         Arc::new(CombinedRequester {
             user_requester,
@@ -151,17 +179,18 @@ impl CombinedRequester {
     }
 }
 
-#[cached(
-    ty = "CustomCache<u32, UserOsu>",
-    create = "{CustomCache::new(21600)}",
-    convert = r#"{user_id}"#,
-    result = true
-)]
 pub async fn cached_osu_user_request(
     client: Arc<dyn Requester>,
+    cache: Arc<RedisCache>,
     osu_token: &str,
     user_id: u32,
 ) -> Result<UserOsu, AppError> {
+    let cache_key = format!("{}{}", USER_FULL_KEY_PREFIX, user_id);
+    if let Some(user_osu) = cache.get::<UserOsu>(&cache_key).await {
+        return Ok(user_osu);
+    }
+
     let user_osu = client.get_user_osu(osu_token, user_id).await?;
+    cache.set(&cache_key, &user_osu, USER_FULL_EXPIRATION).await;
     Ok(user_osu)
 }

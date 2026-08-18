@@ -16,17 +16,16 @@ axum = { version = "0.7.7", features = ["macros", "ws"] }
 axum-extra = { version = "0.9.4", features = ["cookie"] }
 axum-swagger-ui = "0.3.0"
 bytes = { version = "1.8.0", features = ["serde"] }
-cached = { version = "0.53.1", features = ["async"] }
 chrono = "0.4.38"
 dotenvy = "0.15.7"
 futures = "0.3.31"
-hashlink = { version = "0.9.1", features = ["serde", "serde_impl"] }
 http = "1.1.0"
 itertools = "0.13.0"
 jwt-simple = { version = "0.12.10", default-features = false, features = [
     "pure-rust",
 ] }
 rand_core = "0.6"
+redis = { version = "1.6.0", features = ["connection-manager", "tokio-comp"] }
 reqwest = { version = "0.12", features = ["json"] }
 schemars = { version = "0.8.16", features = ["chrono"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
@@ -49,5 +48,10 @@ serde = { git = "https://github.com/frederik-uni/serde" }
 [dev-dependencies]
 axum-test = { version = "16.4.0", features = ["ws"] }
 flate2 = "1.0"
-testcontainers-modules = { version = "0.11.4", features = ["surrealdb"] }
+futures = "0.3.31"
+testcontainers-modules = { version = "0.11.4", features = [
+    "minio",
+    "redis",
+    "surrealdb",
+] }
 uuid = "1.11"

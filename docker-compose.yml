@@ -10,7 +10,8 @@ services:
       - surrealdb-data:/data
 
   surrealdb:
-    image: surrealdb/surrealdb:latest
+    # Keep this in sync with the `surrealdb` crate and the test container tag
+    image: surrealdb/surrealdb:v2.1.0
     entrypoint:
       - /surreal
       - start
@@ -31,6 +32,15 @@ services:
       init-data:
         condition: service_completed_successfully
 
+  redis:
+    image: redis:7-alpine
+    # Cache only, so evict the least recently used keys instead of erroring out when full
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    networks:
+      - mapper-influences-rs
+
   mapper_influences_backend:
     build:
       context: .
@@ -39,6 +49,7 @@ services:
       - .env
     depends_on:
       - surrealdb
+      - redis
     deploy:
       restart_policy:
         condition: on-failure
@@ -50,7 +61,8 @@ services:
     environment:
       SURREAL_USER: backend
       SURREAL_PASS: ${SURREAL_PASS:-password} 
-      SURREAL_URL: ${SURREAL_URL:-ws://surrealdb:8000} # Docker internal port 
+      SURREAL_URL: ${SURREAL_URL:-ws://surrealdb:8000} 
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379} 
       REDIRECT_URI: http://localhost:8000/oauth/osu-redirect
       POST_LOGIN_REDIRECT_URI: http://localhost:3000/dashboard
       JWT_SECRET_KEY: localkey

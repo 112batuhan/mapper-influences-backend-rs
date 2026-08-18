@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use axum::{
     extract::{Path, State},
@@ -9,12 +9,11 @@ use crate::{database::user::User, error::AppError, AppState};
 
 use super::PathUserId;
 
-const DEFAULT_FRONTEND_URL: &str = "https://www.mapperinfluences.com";
-const MAX_DESCRIPTION_LENGTH: usize = 160;
+static FRONTEND_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FRONTEND_URL").unwrap_or_else(|_| "https://www.mapperinfluences.com".to_string())
+});
 
-fn frontend_url() -> String {
-    std::env::var("FRONTEND_URL").unwrap_or_else(|_| DEFAULT_FRONTEND_URL.to_string())
-}
+const MAX_DESCRIPTION_LENGTH: usize = 160;
 
 fn escape_html(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
@@ -83,8 +82,7 @@ pub async fn get_user_og(
     Path(user_id): Path<PathUserId>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Html<String>, AppError> {
-    let frontend = frontend_url();
-    let page_url = format!("{}/profile/{}", frontend, user_id.value);
+    let page_url = format!("{}/profile/{}", *FRONTEND_URL, user_id.value);
 
     match state.db.get_user_details(user_id.value).await {
         Ok(user) => Ok(Html(render_meta(
@@ -97,7 +95,7 @@ pub async fn get_user_og(
         Err(AppError::MissingUser(_)) => Ok(Html(render_meta(
             "Mapper Influences",
             "Track and share your osu! mapping influences.",
-            &format!("{}/icon-512.png", frontend),
+            &format!("{}/icon-512.png", *FRONTEND_URL),
             &page_url,
         ))),
         Err(error) => Err(error),

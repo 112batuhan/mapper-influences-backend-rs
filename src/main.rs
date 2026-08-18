@@ -8,6 +8,11 @@ use axum::{
 };
 use axum_swagger_ui::swagger_ui;
 use mapper_influences_backend_rs::{
+    cache::RedisCache,
+    cache_update::{
+        spawn_cache_updaters, GRAPH_REFRESH_INTERVAL, LEADERBOARD_REFRESH_INTERVAL,
+        UPDATER_START_STAGGER,
+    },
     daily_update::update_routine,
     database::DatabaseClient,
     osu_api::{credentials_grant::CredentialsGrantClient, request::OsuApiRequestClient},
@@ -30,11 +35,28 @@ async fn main() {
     let db = DatabaseClient::new(&url)
         .await
         .expect("failed to initialize db connection");
+    let redis_url = std::env::var("REDIS_URL").expect("Missing REDIS_URL environment variable");
+    let cache = RedisCache::new(&redis_url)
+        .await
+        .expect("failed to initialize redis connection");
     let request = Arc::new(OsuApiRequestClient::new(10));
     let credentials_grant_client = CredentialsGrantClient::new(request.clone())
         .await
         .expect("Failed to initialize credentials grant client");
-    let state = AppState::new(request, credentials_grant_client.clone(), db.clone()).await;
+    let state = AppState::new(request, credentials_grant_client.clone(), db.clone(), cache).await;
+
+    // Opt out for local development, where the background osu! API traffic is rarely wanted
+    let refresh_var = std::env::var("CACHE_REFRESH");
+    if !refresh_var.is_ok_and(|value| value.to_lowercase() == "false") {
+        info!(
+            "refreshing the leaderboard caches every {} seconds and the graph cache every {} seconds, \
+            warming all of them now and spacing them {} seconds apart afterwards",
+            LEADERBOARD_REFRESH_INTERVAL.as_secs(),
+            GRAPH_REFRESH_INTERVAL.as_secs(),
+            UPDATER_START_STAGGER.as_secs(),
+        );
+        spawn_cache_updaters(state.clone(), UPDATER_START_STAGGER);
+    }
 
     let start_var = std::env::var("DAILY_UPDATE");
     if start_var.is_ok_and(|value| value.to_lowercase() == "true") {
@@ -95,7 +117,7 @@ async fn main() {
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let port = std::env::var("PORT").expect("PORT enviroment variable is not set");
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", &port))
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
         .await
         .unwrap();
     info!("listening on {}", listener.local_addr().unwrap());

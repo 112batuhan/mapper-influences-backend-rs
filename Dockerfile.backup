@@ -1,0 +1,35 @@
+# Takes one backup and exits. Meant to be started on a schedule (a Railway cron
+# service, or any other cron), not left running.
+#
+# It's all shell: `backup.sh` exports, uploads and checks its own work, and
+# `restore.sh` imports. Nothing is compiled here, so the image builds in seconds.
+#
+# It declares no ARG/ENV for its configuration on purpose. Everything it needs is
+# a secret, and anything baked in with ENV can be read straight back out of the
+# finished image. They are passed in at run time.
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        jq \
+        gzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# The database a dump is restored into to prove it restores. In memory, in this
+# container, so it needs no docker and touches nothing real. Keep the tag matching
+# the server in production, a dump that only restores into some other version is
+# not the news we want to get.
+COPY --from=surrealdb/surrealdb:v2.6.5 /surreal /usr/local/bin/surreal
+
+# Talks to R2, and to whatever else the bucket might move to one day. It's here so
+# the scripts never have to sign an S3 request by hand.
+COPY --from=minio/mc:latest /usr/bin/mc /usr/local/bin/mc
+
+COPY scripts/backup.sh /usr/local/bin/backup.sh
+COPY scripts/restore.sh /usr/local/bin/restore.sh
+
+WORKDIR /usr/local/bin
+ENTRYPOINT ["/usr/local/bin/backup.sh"]

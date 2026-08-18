@@ -23,7 +23,8 @@ impl DatabaseClient {
                 "#,
             )
             .bind(("user", numerical_thing("user", user_id)))
-            .await?;
+            .await?
+            .check()?;
         Ok(())
     }
 

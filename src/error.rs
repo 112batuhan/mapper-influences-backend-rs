@@ -56,8 +56,14 @@ pub enum AppError {
     #[error("Unhandled Reqwest Error: {0}")]
     Reqwest(#[from] reqwest::Error),
 
+    #[error("osu! API returned an error status: {0}")]
+    OsuApiStatus(u16),
+
     #[error("Failed to decode json text: {0}")]
     SerdeJson(#[from] serde_json::Error),
+
+    #[error("Redis cache error: {0}")]
+    Redis(#[from] redis::RedisError),
 
     #[error("Unhandled Jwt error: {0}")]
     Jwt(#[from] jwt_simple::Error),
@@ -65,11 +71,17 @@ pub enum AppError {
     #[error("Input string exceeds maximum length")]
     StringTooLong,
 
+    #[error("Too many beatmaps in a single request")]
+    TooManyBeatmaps,
+
     #[error("Std IO error: {0}")]
     StdIO(#[from] std::io::Error),
 
     #[error("Error in activity preferences query")]
     ActivityPreferencesQuery,
+
+    #[error("Credentials grant token is unavailable")]
+    CredentialsTokenUnavailable,
 
     #[error("Parse int: {0}")]
     ParseInt(#[from] ParseIntError),
@@ -82,9 +94,6 @@ struct ErrorMessage {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        let body = Json(ErrorMessage {
-            message: self.to_string(),
-        });
         let status_code = match self {
             AppError::UnhandledDb(_)
             | AppError::Reqwest(_)
@@ -93,22 +102,42 @@ impl IntoResponse for AppError {
             | AppError::RwLock
             | AppError::BadUri(_)
             | AppError::SerdeJson(_)
+            | AppError::Redis(_)
             | AppError::TaskJoin(_)
             | AppError::ActivityStreamClosed
             | AppError::SurrealDbSerialization(_)
             | AppError::StdIO(_)
             | AppError::ActivityPreferencesQuery
+            | AppError::CredentialsTokenUnavailable
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie
             | AppError::JwtVerification
             | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
-            AppError::MissingLayerJson | AppError::StringTooLong | AppError::ParseInt(_) => {
-                StatusCode::UNPROCESSABLE_ENTITY
-            }
+            AppError::MissingLayerJson
+            | AppError::StringTooLong
+            | AppError::TooManyBeatmaps
+            | AppError::ParseInt(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::MissingInfluence | AppError::MissingUser(_) | Self::NonExistingMap(_) => {
                 StatusCode::NOT_FOUND
             }
+            // Translate an upstream osu! API status into something meaningful for our clients.
+            // 401/403 mean our own credentials failed, so it's a gateway problem, not the
+            // caller's.
+            AppError::OsuApiStatus(status) => match status {
+                404 => StatusCode::NOT_FOUND,
+                429 => StatusCode::TOO_MANY_REQUESTS,
+                _ => StatusCode::BAD_GATEWAY,
+            },
         };
+        // Internal error details (DB messages, upstream URLs, serialization dumps) are only
+        // logged server-side; clients get a generic message
+        let message = if status_code == StatusCode::INTERNAL_SERVER_ERROR {
+            tracing::error!("Internal error while handling a request: {}", self);
+            "Internal server error".to_string()
+        } else {
+            self.to_string()
+        };
+        let body = Json(ErrorMessage { message });
         (status_code, body).into_response()
     }
 }

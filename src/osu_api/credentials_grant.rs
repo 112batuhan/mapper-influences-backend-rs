@@ -1,110 +1,96 @@
-use std::{
-    ops::DerefMut,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
-use tokio::{sync::oneshot, sync::Mutex as AsyncMutex, time::sleep};
+use tokio::{
+    sync::{watch, OnceCell},
+    time::sleep,
+};
 
 use crate::{error::AppError, retry::Retryable};
 
 use super::{request::Requester, UserOsu};
 
-/// A wrapper to [`RequestClient`] to store and update credentials grant client auth method token
-///
-/// Will be used to request activity, leaderboard and daily update data
+/// Seconds shaved off a token's lifetime so we refresh before it actually expires.
+const REFRESH_BUFFER_SECS: u64 = 120;
+/// Lower bound on the refresh interval. Guards against a short-lived (or misreported) token
+/// spinning us into a tight refresh loop, and against underflow when subtracting the buffer.
+const MIN_REFRESH_SECS: u64 = 60;
+
+/// A wrapper to [`Requester`] that stores and periodically refreshes the client-credentials-grant
+/// token used for activity, leaderboard and daily update requests.
 pub struct CredentialsGrantClient {
     client: Arc<dyn Requester>,
-    token: RwLock<Option<String>>,
-    // To start the loop lazily
-    start_sender: AsyncMutex<Option<oneshot::Sender<()>>>,
-    end_receiver: AsyncMutex<Option<oneshot::Receiver<()>>>,
+    /// Latest token. `None` until the refresh loop produces the first one.
+    token: watch::Sender<Option<String>>,
+    /// Ensures the background refresh loop is spawned exactly once, lazily on first use.
+    start: OnceCell<()>,
 }
 
 impl CredentialsGrantClient {
     pub async fn new(client: Arc<dyn Requester>) -> Result<Arc<CredentialsGrantClient>, AppError> {
-        let (start_sender, start_receiver) = oneshot::channel();
-        let (end_sender, end_receiver) = oneshot::channel();
-        let client = Arc::new(CredentialsGrantClient {
+        // Keep one receiver alive so the channel isn't considered closed before the loop starts.
+        let (token, _keep_alive) = watch::channel(None);
+        Ok(Arc::new(CredentialsGrantClient {
             client,
-            token: RwLock::new(None),
-            start_sender: AsyncMutex::new(Some(start_sender)),
-            end_receiver: AsyncMutex::new(Some(end_receiver)),
-        });
-        client.clone().start_loop(start_receiver, end_sender);
-        Ok(client)
+            token,
+            start: OnceCell::new(),
+        }))
     }
 
-    fn update_token(&self, new_token: String) -> Result<(), AppError> {
-        let mut token = self.token.write().map_err(|_| AppError::RwLock)?;
-        *token = Some(new_token);
-        Ok(())
-    }
-
-    // I could refactor the retry and update functions but whatever.
-    fn start_loop(
-        self: Arc<Self>,
-        start_receiver: oneshot::Receiver<()>,
-        end_sender: oneshot::Sender<()>,
-    ) {
-        let buffer_time = 120;
-        let mut client_clone = self.client.clone();
-
-        // we can't fail this task, best we can do is to retry. If this doesn't work,
-        // then there is a good chance that the rest of the requests won't work either
-        tokio::spawn(async move {
-            let _ = start_receiver.await;
-            let token = client_clone
-                .retry_until_success(60, "Failed to get client credentials grant token")
-                .await;
-            let _ = self.update_token(token.access_token);
-            let _ = end_sender.send(());
-            loop {
-                sleep(Duration::from_secs(token.expires_in as u64 - buffer_time)).await;
-                let token = client_clone
-                    .retry_until_success(60, "Failed to get client credentials grant token")
-                    .await;
-                let _ = self.update_token(token.access_token);
-            }
-        });
+    /// Spawn the refresh loop on first use. [`OnceCell`] guarantees a single spawn even when
+    /// several callers race here concurrently, so there is no check-then-act window.
+    async fn ensure_loop_started(&self) {
+        self.start
+            .get_or_init(|| async {
+                let mut client: Arc<dyn Requester> = self.client.clone();
+                let token_tx = self.token.clone();
+                tokio::spawn(async move {
+                    // We can't fail this task; the best we can do is retry. If it can't get a
+                    // token, the rest of the app probably can't reach osu! either.
+                    loop {
+                        let new_token = client
+                            .retry_until_success(60, "Failed to get client credentials grant token")
+                            .await;
+                        let expires_in = new_token.expires_in as u64;
+                        // If every receiver is gone the app is shutting down; stop refreshing.
+                        if token_tx.send(Some(new_token.access_token)).is_err() {
+                            break;
+                        }
+                        // Refresh based on *this* token's lifetime, clamped so we never underflow
+                        // the buffer or busy-loop on an implausibly short expiry.
+                        let refresh_in = expires_in
+                            .saturating_sub(REFRESH_BUFFER_SECS)
+                            .max(MIN_REFRESH_SECS);
+                        sleep(Duration::from_secs(refresh_in)).await;
+                    }
+                });
+            })
+            .await;
     }
 
     pub fn get_token_only(&self) -> Result<Option<String>, AppError> {
-        let token_guard = self.token.read().map_err(|_| AppError::RwLock)?;
-        Ok(token_guard.clone())
+        Ok(self.token.borrow().clone())
     }
 
-    /// Starting the loop lazily after the first token access.
-    /// This is necessary for tests. We don't want to request token if we don't need to.
+    /// Returns the current token, lazily starting the refresh loop and waiting for the first token
+    /// if one hasn't been produced yet.
     pub async fn get_access_token(&self) -> Result<String, AppError> {
-        if let Some(token) = self.get_token_only()? {
-            Ok(token)
-        } else {
-            // this is a good place to panic. There is no way for the sender and receivers to drop.
-            // If it does, then rest of the app probably isn't working
-            self.start_sender
-                .lock()
-                .await
-                .deref_mut()
-                .take()
-                .expect("start sender is missing")
-                .send(())
-                .expect("Failed to send start message");
-
-            self.end_receiver
-                .lock()
-                .await
-                .deref_mut()
-                .take()
-                .expect("end receiver is missing")
-                .await
-                .expect("Failed receive end message");
-            let token_guard = self.token.read().map_err(|_| AppError::RwLock)?;
-            let Some(token) = token_guard.clone() else {
-                panic!("Failed to initialize client grant token")
-            };
-            Ok(token)
+        if let Some(token) = self.token.borrow().clone() {
+            return Ok(token);
         }
+        self.ensure_loop_started().await;
+
+        // Wait until the loop publishes a token. The sender lives inside `self`, so this can only
+        // error if `self` was dropped, which cannot happen while we hold `&self`.
+        let mut receiver = self.token.subscribe();
+        receiver
+            .wait_for(|token| token.is_some())
+            .await
+            .map_err(|_| AppError::CredentialsTokenUnavailable)?;
+
+        self.token
+            .borrow()
+            .clone()
+            .ok_or(AppError::CredentialsTokenUnavailable)
     }
 
     /// Ease of use to get user data since we already contain the client inside

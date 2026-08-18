@@ -1,6 +1,7 @@
 ARG SURREAL_USER
 ARG SURREAL_PASS
 ARG SURREAL_URL
+ARG REDIS_URL
 ARG CLIENT_ID
 ARG CLIENT_SECRET
 ARG REDIRECT_URI
@@ -12,7 +13,7 @@ ARG ADMIN_PASSWORD
 FROM rust:latest as rust-builder
 WORKDIR /usr/src/mapper_influences_backend
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --bin mapper-influences-backend
 
 FROM rust:slim
 WORKDIR /usr/src/mapper_influences_backend
@@ -24,7 +25,8 @@ COPY --from=rust-builder /usr/src/mapper_influences_backend/src/graph-3d.html .
 ENV SURREAL_USER=${SURREAL_USER}
 ENV SURREAL_PASS=${SURREAL_PASS}
 ENV SURREAL_URL=${SURREAL_URL}
-ENV CLIENT_ID=${SURREAL_USER}
+ENV REDIS_URL=${REDIS_URL}
+ENV CLIENT_ID=${CLIENT_ID}
 ENV CLIENT_SECRET=${CLIENT_SECRET}
 ENV REDIRECT_URI=${REDIRECT_URI}
 ENV POST_LOGIN_REDIRECT_URI=${POST_LOGIN_REDIRECT_URI}

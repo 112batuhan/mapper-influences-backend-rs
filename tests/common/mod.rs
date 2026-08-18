@@ -1,109 +1,46 @@
+// Every test binary compiles this module on its own, so whatever a single one of
+// them doesn't touch looks dead from its point of view
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
-use axum::{
-    middleware,
-    routing::{any, delete, get, patch, post},
-    Router,
-};
+use axum::Router;
 use axum_test::TestServer;
 use mapper_influences_backend_rs::{
+    cache::RedisCache,
     database::DatabaseClient,
-    handlers,
     osu_api::{credentials_grant::CredentialsGrantClient, request::OsuApiRequestClient},
-    AppState,
+    routes, AppState,
 };
 use osu_test_client::OsuApiTestClient;
 use surrealdb_migrations::MigrationRunner;
 use testcontainers_modules::{
+    redis::{Redis, REDIS_PORT},
     surrealdb::{SurrealDb, SURREALDB_PORT},
     testcontainers::{runners::AsyncRunner, ContainerAsync, ImageExt},
 };
+use tokio::sync::Mutex;
 
 pub mod osu_test_client;
 
-/// TODO: make it different so that we can have one place we have to change.
-/// Redefining routes because aide and axum_test is not compatible
-pub fn test_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/search/map", get(handlers::osu_search::osu_beatmap_search))
-        .route(
-            "/search/map/:beatmap_id",
-            get(handlers::osu_search::osu_singular_beatmap_serch),
-        )
-        .route(
-            "/search/user/:query",
-            get(handlers::osu_search::osu_user_search),
-        )
-        .route(
-            "/influence/:influenced_to",
-            post(handlers::influence::add_influence),
-        )
-        .route(
-            "/influence/influences/:user_id",
-            get(handlers::influence::get_user_influences),
-        )
-        .route(
-            "/influence/mentions/:user_id",
-            get(handlers::influence::get_user_mentions),
-        )
-        .route(
-            "/influence/:influenced_to",
-            delete(handlers::influence::delete_influence),
-        )
-        .route(
-            "/influence/:influenced_to/map/:beatmap_id",
-            patch(handlers::influence::add_influence_beatmap),
-        )
-        .route(
-            "/influence/:influenced_to/map/:beatmap_id",
-            delete(handlers::influence::remove_influence_beatmap),
-        )
-        .route(
-            "/influence/:influenced_to/description",
-            patch(handlers::influence::update_influence_description),
-        )
-        .route(
-            "/influence/:influenced_to/type/:type_id",
-            patch(handlers::influence::update_influence_type),
-        )
-        .route("/users/me", get(handlers::user::get_me))
-        .route("/users/:user_id", get(handlers::user::get_user))
-        .route("/users/bio", patch(handlers::user::update_user_bio))
-        .route("/users/map", patch(handlers::user::add_user_beatmap))
-        .route(
-            "/users/map/:beatmap_id",
-            delete(handlers::user::delete_user_beatmap),
-        )
-        .route(
-            "/users/influence-order",
-            post(handlers::user::set_influence_order),
-        )
-        .layer(middleware::from_fn_with_state(
-            state,
-            handlers::auth::check_jwt_token,
-        ))
-        .route("/activity", get(handlers::activity::get_latest_activities))
-        .route("/ws", any(handlers::activity::ws_handler))
-        .route(
-            "/oauth/osu-redirect",
-            get(handlers::auth::osu_oauth2_redirect),
-        )
-        .route("/oauth/logout", get(handlers::auth::logout))
-        .route("/oauth/admin", post(handlers::auth::admin_login))
-        .route(
-            "/leaderboard/user",
-            get(handlers::leaderboard::get_user_leaderboard),
-        )
-        .route(
-            "/leaderboard/beatmap",
-            get(handlers::leaderboard::get_beatmap_leaderboard),
-        )
-        .route("/graph", get(handlers::graph_vizualizer::get_graph_data))
+/// See where it's used, migrations are not safe to run side by side
+static MIGRATION_LOCK: Mutex<()> = Mutex::const_new(());
+
+/// Containers are dropped when this is dropped, so tests have to keep it alive
+pub struct TestContainers {
+    pub _surrealdb: ContainerAsync<SurrealDb>,
+    pub _redis: ContainerAsync<Redis>,
 }
 
-pub async fn init_test_env(
-    label: &str,
-) -> (TestServer, Arc<OsuApiTestClient>, ContainerAsync<SurrealDb>) {
+pub struct TestEnv {
+    pub server: TestServer,
+    pub requester: Arc<OsuApiTestClient>,
+    /// For the tests that need to reach past the endpoints, like the background routines
+    pub state: Arc<AppState>,
+    pub _containers: TestContainers,
+}
+
+pub async fn init_test_env(label: &str) -> TestEnv {
     dotenvy::dotenv().ok();
 
     // Think of this as join handler. we need to keep the reference alive.
@@ -126,10 +63,31 @@ pub async fn init_test_env(
         .await
         .expect("failed to initialize db connection");
 
-    MigrationRunner::new(db.get_inner_ref())
-        .up()
+    {
+        // Applying migrations rewrites `migrations/migrations/definitions/_initial.json`,
+        // and a concurrent runner reads that file while it's still empty. The databases
+        // are separate, the file isn't, so only one test at a time gets to migrate.
+        let _migration_guard = MIGRATION_LOCK.lock().await;
+        MigrationRunner::new(db.get_inner_ref())
+            .up()
+            .await
+            .expect("Failed to apply migrations");
+    }
+
+    // Every test gets its own redis instance, so caches don't leak between tests.
+    // The module defaults to redis 5.0, so the tag is pinned to the one in docker compose
+    let redis_container = Redis::default()
+        .with_tag("7-alpine")
+        .start()
         .await
-        .expect("Failed to apply migrations");
+        .expect("Failed to start redis test container");
+    let redis_host_port = redis_container
+        .get_host_port_ipv4(REDIS_PORT)
+        .await
+        .expect("Failed to get the redis container port");
+    let cache = RedisCache::new(&format!("redis://127.0.0.1:{redis_host_port}"))
+        .await
+        .expect("failed to initialize redis connection");
 
     let working_request_client = Arc::new(OsuApiRequestClient::new(10));
     let test_request_client = OsuApiTestClient::new(working_request_client.clone(), label);
@@ -137,7 +95,13 @@ pub async fn init_test_env(
         .await
         .expect("Failed to initialize credentials grant client");
 
-    let state = AppState::new(test_request_client.clone(), credentials_grant_client, db).await;
+    let state = AppState::new(
+        test_request_client.clone(),
+        credentials_grant_client,
+        db,
+        cache,
+    )
+    .await;
 
     // Requesting peppy to add in our initial database
     let test_initial_user = state
@@ -147,7 +111,18 @@ pub async fn init_test_env(
         .unwrap();
     state.db.upsert_user(test_initial_user).await.unwrap();
 
-    let routes = test_routes(state.clone()).with_state(state);
+    // The exact routes and middleware the binary serves, without the openapi
+    // documentation. `ApiRouter` can't be handed to axum_test directly, but it
+    // converts into a plain `Router`
+    let routes = Router::from(routes(state.clone())).with_state(state.clone());
     let test_server = TestServer::new(routes).expect("failed to initialize test server");
-    (test_server, test_request_client, surrealdb_container)
+    TestEnv {
+        server: test_server,
+        requester: test_request_client,
+        state,
+        _containers: TestContainers {
+            _surrealdb: surrealdb_container,
+            _redis: redis_container,
+        },
+    }
 }
