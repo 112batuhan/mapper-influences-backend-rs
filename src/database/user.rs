@@ -390,6 +390,20 @@ impl DatabaseClient {
         Ok(preference_wrapper.activity_preferences)
     }
 
+    /// Pushes a user's update date forward without touching the rest of their data.
+    ///
+    /// For users the osu! API no longer hands out, restricted ones mostly. There is nothing to
+    /// write, but leaving the date alone would put them back in the daily update window on every
+    /// single run, and they would be requested and fail forever.
+    pub async fn update_user_updated_at(&self, user_id: u32) -> Result<(), AppError> {
+        self.db
+            .query("UPDATE $thing SET updated_at = time::now()")
+            .bind(("thing", numerical_thing("user", user_id)))
+            .await?
+            .check()?;
+        Ok(())
+    }
+
     pub async fn get_users_to_update(&self) -> Result<Vec<u32>, AppError> {
         let ids: Vec<DbUserId> = self
             .db

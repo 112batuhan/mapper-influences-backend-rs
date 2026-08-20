@@ -54,4 +54,6 @@ testcontainers-modules = { version = "0.11.4", features = [
     "redis",
     "surrealdb",
 ] }
+# Only for tests that need to drive the clock, so a refresh interval doesn't mean a real wait
+tokio = { version = "1.40", features = ["test-util"] }
 uuid = "1.11"

@@ -21,17 +21,22 @@ pub struct CredentialsGrantClient {
     client: Arc<dyn Requester>,
     /// Latest token. `None` until the refresh loop produces the first one.
     token: watch::Sender<Option<String>>,
+    /// Holds the channel open for as long as this client exists. Callers only subscribe for the
+    /// duration of a single [`Self::get_access_token`] call, so without a receiver living here the
+    /// count drops back to zero as soon as the first token is handed out, and the next send in the
+    /// refresh loop fails and stops it while a stale token stays readable.
+    _keep_alive: watch::Receiver<Option<String>>,
     /// Ensures the background refresh loop is spawned exactly once, lazily on first use.
     start: OnceCell<()>,
 }
 
 impl CredentialsGrantClient {
     pub async fn new(client: Arc<dyn Requester>) -> Result<Arc<CredentialsGrantClient>, AppError> {
-        // Keep one receiver alive so the channel isn't considered closed before the loop starts.
-        let (token, _keep_alive) = watch::channel(None);
+        let (token, keep_alive) = watch::channel(None);
         Ok(Arc::new(CredentialsGrantClient {
             client,
             token,
+            _keep_alive: keep_alive,
             start: OnceCell::new(),
         }))
     }
@@ -51,7 +56,9 @@ impl CredentialsGrantClient {
                             .retry_until_success(60, "Failed to get client credentials grant token")
                             .await;
                         let expires_in = new_token.expires_in as u64;
-                        // If every receiver is gone the app is shutting down; stop refreshing.
+                        // The only long lived receiver is the one the client itself holds, so this
+                        // fails exactly when the client has been dropped. Nothing left to refresh
+                        // a token for at that point.
                         if token_tx.send(Some(new_token.access_token)).is_err() {
                             break;
                         }
