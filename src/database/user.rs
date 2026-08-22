@@ -36,6 +36,10 @@ pub struct User {
     /// This will have a number if the data is coming from database.
     /// If the data comes from osu! API, then this will be null
     pub mentions: Option<u32>,
+    /// How many mappers this user lists as an influence.
+    /// This will have a number if the data is coming from database.
+    /// If the data comes from osu! API, then this will be null
+    pub influences: Option<u32>,
 }
 
 impl From<UserOsu> for User {
@@ -58,6 +62,7 @@ impl From<UserOsu> for User {
             pending_beatmapset_count: user_osu.pending_beatmapset_count,
             beatmaps: Vec::new(),
             mentions: None,
+            influences: None,
         }
     }
 }
@@ -229,7 +234,8 @@ impl DatabaseClient {
         loved_beatmapset_count,
         graveyard_beatmapset_count,
         pending_beatmapset_count,
-        count(<-influenced_by) as mentions
+        count(<-influenced_by) as mentions,
+        count(->influenced_by) as influences
         "
     }
 
