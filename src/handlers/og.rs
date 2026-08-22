@@ -61,17 +61,51 @@ fn render_meta(title: &str, description: &str, image: &str, page_url: &str) -> S
     )
 }
 
-fn user_description(user: &User) -> String {
-    if !user.bio.trim().is_empty() {
-        return summarize(&user.bio, MAX_DESCRIPTION_LENGTH);
+fn count_label(count: u32, singular: &str) -> String {
+    if count == 1 {
+        format!("{count} {singular}")
+    } else {
+        format!("{count} {singular}s")
     }
-    match user.mentions {
-        Some(mentions) if mentions > 0 => format!(
-            "Mentioned as an influence by {} mapper{} on Mapper Influences.",
-            mentions,
-            if mentions == 1 { "" } else { "s" }
-        ),
-        _ => "Track and share your osu! mapping influences.".to_string(),
+}
+
+/// Stat row for the embed. Empty fields and zero counts are left out, so a
+/// sparse profile does not render stray separators.
+fn user_metadata(user: &User) -> String {
+    let mut parts: Vec<String> = Vec::new();
+
+    let country = user.country_name.trim();
+    if !country.is_empty() {
+        parts.push(country.to_string());
+    }
+
+    let ranked_maps = user.ranked_and_approved_beatmapset_count + user.guest_beatmapset_count;
+    if ranked_maps > 0 {
+        parts.push(count_label(ranked_maps, "ranked map"));
+    }
+
+    if let Some(influences) = user.influences.filter(|count| *count > 0) {
+        parts.push(count_label(influences, "influence"));
+    }
+
+    if let Some(mentions) = user.mentions.filter(|count| *count > 0) {
+        parts.push(count_label(mentions, "mention"));
+    }
+
+    parts.join(" · ")
+}
+
+/// Description body of the embed: the stat row, then the bio on its own line.
+/// Link preview clients render the newline as a line break.
+fn user_description(user: &User) -> String {
+    let metadata = user_metadata(user);
+    let bio = summarize(&user.bio, MAX_DESCRIPTION_LENGTH);
+
+    match (metadata.is_empty(), bio.is_empty()) {
+        (true, true) => "Track and share your osu! mapping influences.".to_string(),
+        (true, false) => bio,
+        (false, true) => metadata,
+        (false, false) => format!("{metadata}\n{bio}"),
     }
 }
 
@@ -86,7 +120,7 @@ pub async fn get_user_og(
 
     match state.db.get_user_details(user_id.value).await {
         Ok(user) => Ok(Html(render_meta(
-            &format!("{} — Mapper Influences", user.username),
+            &format!("{} | Mapper Influences", user.username),
             &user_description(&user),
             &user.avatar_url,
             &page_url,
@@ -99,5 +133,71 @@ pub async fn get_user_og(
             &page_url,
         ))),
         Err(error) => Err(error),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn user() -> User {
+        User {
+            id: 1,
+            username: "Mapper".to_string(),
+            avatar_url: "https://a.ppy.sh/1".to_string(),
+            bio: String::new(),
+            groups: Vec::new(),
+            country_code: "TR".to_string(),
+            country_name: "Turkey".to_string(),
+            previous_usernames: Vec::new(),
+            ranked_and_approved_beatmapset_count: 0,
+            ranked_beatmapset_count: 0,
+            nominated_beatmapset_count: 0,
+            guest_beatmapset_count: 0,
+            loved_beatmapset_count: 0,
+            graveyard_beatmapset_count: 0,
+            pending_beatmapset_count: 0,
+            beatmaps: Vec::new(),
+            mentions: None,
+            influences: None,
+        }
+    }
+
+    #[test]
+    fn metadata_skips_empty_and_zero_fields() {
+        let mut sparse = user();
+        sparse.country_name = String::new();
+        assert_eq!(user_metadata(&sparse), "");
+
+        let mut filled = user();
+        filled.ranked_and_approved_beatmapset_count = 3;
+        filled.guest_beatmapset_count = 1;
+        filled.influences = Some(1);
+        filled.mentions = Some(0);
+        assert_eq!(
+            user_metadata(&filled),
+            "Turkey · 4 ranked maps · 1 influence"
+        );
+    }
+
+    #[test]
+    fn description_puts_bio_on_its_own_line() {
+        let mut user = user();
+        user.bio = "  Loves\n  jumps  ".to_string();
+        user.influences = Some(2);
+        assert_eq!(
+            user_description(&user),
+            "Turkey · 2 influences\nLoves jumps"
+        );
+    }
+
+    #[test]
+    fn description_falls_back_when_everything_is_empty() {
+        let mut empty = user();
+        empty.country_name = String::new();
+        assert_eq!(
+            user_description(&empty),
+            "Track and share your osu! mapping influences."
+        );
     }
 }
