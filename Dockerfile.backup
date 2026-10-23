@@ -26,7 +26,11 @@ COPY --from=surrealdb/surrealdb:v2.6.5 /surreal /usr/local/bin/surreal
 
 # Talks to R2, and to whatever else the bucket might move to one day. It's here so
 # the scripts never have to sign an S3 request by hand.
-COPY --from=minio/mc:latest /usr/bin/mc /usr/local/bin/mc
+#
+# MinIO stopped publishing community builds: minio/mc is gone from Docker Hub and
+# quay.io, and dl.min.io answers 410. Chainguard still builds it from source, as
+# a static binary at the same path, so it drops straight in.
+COPY --from=cgr.dev/chainguard/minio-client:latest /usr/bin/mc /usr/local/bin/mc
 
 COPY scripts/backup.sh /usr/local/bin/backup.sh
 COPY scripts/restore.sh /usr/local/bin/restore.sh
