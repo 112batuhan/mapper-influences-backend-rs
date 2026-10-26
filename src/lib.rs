@@ -201,6 +201,12 @@ pub fn routes(state: Arc<AppState>) -> ApiRouter<Arc<AppState>> {
             get_with(handlers::og::get_user_og, |op| op.tag("Open Graph")),
         )
         .api_route(
+            "/oauth/login",
+            get_with(handlers::auth::osu_oauth2_login, |op| {
+                op.tag("Auth").response::<303, ()>()
+            }),
+        )
+        .api_route(
             "/oauth/osu-redirect",
             get_with(handlers::auth::osu_oauth2_redirect, |op| {
                 op.tag("Auth").response::<302, ()>()

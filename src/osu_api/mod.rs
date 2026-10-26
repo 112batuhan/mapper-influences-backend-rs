@@ -18,6 +18,22 @@ static REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
     std::env::var("REDIRECT_URI").expect("Missing REDIRECT_URI environment variable")
 });
 
+/// The osu! login page. osu! sends `state` back unchanged to [`REDIRECT_URI`]
+pub fn authorize_url(state: &str) -> String {
+    reqwest::Url::parse_with_params(
+        "https://osu.ppy.sh/oauth/authorize",
+        [
+            ("response_type", "code"),
+            ("client_id", CLIENT_ID.as_str()),
+            ("redirect_uri", REDIRECT_URI.as_str()),
+            ("scope", "public identify"),
+            ("state", state),
+        ],
+    )
+    .expect("osu! authorize url is valid")
+    .into()
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OsuAuthToken {
     pub access_token: String,

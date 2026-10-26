@@ -19,6 +19,9 @@ pub enum AppError {
     #[error("Jwt verification error")]
     JwtVerification,
 
+    #[error("OAuth state is missing or does not match, start the login again")]
+    OAuthState,
+
     #[error("Wrong admin password")]
     WrongAdminPassword,
 
@@ -112,6 +115,7 @@ impl IntoResponse for AppError {
             | AppError::SephomoreError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::MissingTokenCookie
             | AppError::JwtVerification
+            | AppError::OAuthState
             | AppError::WrongAdminPassword => StatusCode::UNAUTHORIZED,
             AppError::MissingLayerJson
             | AppError::StringTooLong

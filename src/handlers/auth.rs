@@ -2,7 +2,10 @@ use std::sync::{Arc, LazyLock};
 
 use aide::transform::TransformOperation;
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{
+        rand_core::{OsRng, RngCore},
+        PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+    },
     Argon2,
 };
 use axum::{
@@ -17,7 +20,7 @@ use reqwest::header::SET_COOKIE;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::AppError, AppState};
+use crate::{error::AppError, osu_api::authorize_url, AppState};
 
 static POST_LOGIN_REDIRECT_URI: LazyLock<String> = LazyLock::new(|| {
     std::env::var("POST_LOGIN_REDIRECT_URI")
@@ -41,9 +44,44 @@ static DEPLOY_COOKIE: LazyLock<bool> = LazyLock::new(|| {
     std::env::var("DEPLOY_COOKIE").is_ok_and(|value| value.to_lowercase() == "true")
 });
 
+/// Holds the random `state` between [`osu_oauth2_login`] and [`osu_oauth2_redirect`]
+const OAUTH_STATE_COOKIE: &str = "oauth_state";
+
 #[derive(Deserialize, JsonSchema)]
 pub struct AuthQuery {
     code: String,
+    state: String,
+}
+
+fn oauth_state_cookie(value: &str, max_age: i32) -> String {
+    let mut cookie =
+        format!("{OAUTH_STATE_COOKIE}={value};HttpOnly;Max-Age={max_age};Path=/oauth;SameSite=lax");
+    if *DEPLOY_COOKIE {
+        cookie += ";Secure";
+    }
+    cookie
+}
+
+/// The cookie is only ever set by [`osu_oauth2_login`], so a missing or empty one never matches
+fn state_matches(cookie_state: Option<&str>, query_state: &str) -> bool {
+    cookie_state.is_some_and(|cookie_state| !cookie_state.is_empty() && cookie_state == query_state)
+}
+
+/// Starts the osu! login. The same random `state` goes into a cookie and into the osu! url, and
+/// [`osu_oauth2_redirect`] only accepts the login when the two match. Without this, another site
+/// could send a user to the redirect with the attacker's own code and log them into the
+/// attacker's account (login CSRF).
+pub async fn osu_oauth2_login() -> Response {
+    let mut bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    let oauth_state: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+
+    let mut response = Redirect::to(&authorize_url(&oauth_state)).into_response();
+    response.headers_mut().append(
+        SET_COOKIE,
+        oauth_state_cookie(&oauth_state, 600).parse().unwrap(),
+    );
+    response
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -62,7 +100,15 @@ impl AdminLogin {
 pub async fn osu_oauth2_redirect(
     Query(query_parameters): Query<AuthQuery>,
     State(state): State<Arc<AppState>>,
+    cookie_jar: CookieJar,
 ) -> Result<Response, AppError> {
+    let cookie_state = cookie_jar
+        .get(OAUTH_STATE_COOKIE)
+        .map(|cookie| cookie.value());
+    if !state_matches(cookie_state, &query_parameters.state) {
+        return Err(AppError::OAuthState);
+    }
+
     let auth_response = state
         .request
         .get_osu_auth_token(query_parameters.code)
@@ -93,6 +139,10 @@ pub async fn osu_oauth2_redirect(
 
     headers.append(SET_COOKIE, user_token_cookie_string.parse().unwrap());
     headers.append(SET_COOKIE, logged_in_cookie_string.parse().unwrap());
+    headers.append(
+        SET_COOKIE,
+        oauth_state_cookie("deleted", -1).parse().unwrap(),
+    );
 
     // TODO: maybe fix authorized thing to be in the same query later?
     let osu_user_id = osu_user.id;
@@ -173,4 +223,37 @@ pub async fn admin_login(
         client_credential_token,
         86400,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn state_must_match_the_cookie() {
+        assert!(state_matches(Some("abc123"), "abc123"));
+        assert!(!state_matches(Some("abc123"), "other"));
+        assert!(!state_matches(None, "abc123"));
+        assert!(!state_matches(Some(""), ""));
+    }
+
+    #[tokio::test]
+    async fn login_sends_the_cookie_state_to_osu() {
+        std::env::set_var("CLIENT_ID", "1");
+        std::env::set_var("REDIRECT_URI", "http://localhost:8000/oauth/osu-redirect");
+
+        let response = osu_oauth2_login().await;
+        let location =
+            reqwest::Url::parse(response.headers()[http::header::LOCATION].to_str().unwrap())
+                .unwrap();
+        let url_state = location
+            .query_pairs()
+            .find(|(key, _)| key == "state")
+            .unwrap()
+            .1;
+        let cookie = response.headers()[SET_COOKIE].to_str().unwrap();
+
+        assert_eq!(url_state.len(), 64);
+        assert!(cookie.starts_with(&format!("{OAUTH_STATE_COOKIE}={url_state};HttpOnly;")));
+    }
 }
