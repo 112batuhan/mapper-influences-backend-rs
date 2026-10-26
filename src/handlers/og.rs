@@ -3,9 +3,12 @@ use std::sync::{Arc, LazyLock};
 use axum::{
     extract::{Path, State},
     response::Html,
+    Json,
 };
+use schemars::JsonSchema;
+use serde::Serialize;
 
-use crate::{database::user::User, error::AppError, AppState};
+use crate::{database::user::User, error::AppError, osu_api::Group, AppState};
 
 use super::PathUserId;
 
@@ -40,7 +43,13 @@ fn summarize(text: &str, max_chars: usize) -> String {
     format!("{}…", truncated.trim_end())
 }
 
-fn render_meta(title: &str, description: &str, image: &str, page_url: &str) -> String {
+fn render_meta(
+    title: &str,
+    description: &str,
+    image: &str,
+    page_url: &str,
+    twitter_card: &str,
+) -> String {
     let title = escape_html(title);
     let description = escape_html(description);
     let image = escape_html(image);
@@ -55,7 +64,7 @@ fn render_meta(title: &str, description: &str, image: &str, page_url: &str) -> S
         <meta property=\"og:type\" content=\"profile\">\n\
         <meta property=\"og:url\" content=\"{page_url}\">\n\
         <meta property=\"og:image\" content=\"{image}\">\n\
-        <meta name=\"twitter:card\" content=\"summary\">\n\
+        <meta name=\"twitter:card\" content=\"{twitter_card}\">\n\
         <meta http-equiv=\"refresh\" content=\"0; url={page_url}\">\n\
         </head>\n<body></body>\n</html>"
     )
@@ -119,11 +128,13 @@ pub async fn get_user_og(
     let page_url = format!("{}/profile/{}", *FRONTEND_URL, user_id.value);
 
     match state.db.get_user_details(user_id.value).await {
+        // The frontend renders the card image from `get_user_og_card`
         Ok(user) => Ok(Html(render_meta(
             &format!("{} | Mapper Influences", user.username),
             &user_description(&user),
-            &user.avatar_url,
+            &format!("{}/api/og/user/{}", *FRONTEND_URL, user_id.value),
             &page_url,
+            "summary_large_image",
         ))),
         // Fall back to the generic site embed for users that are not in the database
         Err(AppError::MissingUser(_)) => Ok(Html(render_meta(
@@ -131,9 +142,44 @@ pub async fn get_user_og(
             "Track and share your osu! mapping influences.",
             &format!("{}/icon-512.png", *FRONTEND_URL),
             &page_url,
+            "summary",
         ))),
         Err(error) => Err(error),
     }
+}
+
+/// Public stats for the profile card image. These are the same stats that the
+/// meta page description already shows.
+#[derive(Serialize, JsonSchema)]
+pub struct UserCard {
+    pub username: String,
+    pub avatar_url: String,
+    pub country_code: String,
+    pub country_name: String,
+    pub groups: Vec<Group>,
+    /// Ranked, approved and guest maps, same as the profile page
+    pub ranked_maps: u32,
+    pub mentions: u32,
+    pub influences: u32,
+}
+
+/// Data for the frontend profile card image. Database users only, so a
+/// public caller cannot trigger osu! API requests.
+pub async fn get_user_og_card(
+    Path(user_id): Path<PathUserId>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<UserCard>, AppError> {
+    let user = state.db.get_user_details(user_id.value).await?;
+    Ok(Json(UserCard {
+        ranked_maps: user.ranked_and_approved_beatmapset_count + user.guest_beatmapset_count,
+        mentions: user.mentions.unwrap_or(0),
+        influences: user.influences.unwrap_or(0),
+        username: user.username,
+        avatar_url: user.avatar_url,
+        country_code: user.country_code,
+        country_name: user.country_name,
+        groups: user.groups,
+    }))
 }
 
 #[cfg(test)]
